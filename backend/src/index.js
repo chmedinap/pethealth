@@ -23,12 +23,19 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const ms = Date.now() - start
     const level = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'WARN' : 'INFO'
-    console.log(`[${level}] ${req.method} ${req.url} → ${res.statusCode} (${ms}ms)`)
+    const ip = req.ip || req.socket.remoteAddress
+    console.log(`[${level}] ${req.method} ${req.url} → ${res.statusCode} (${ms}ms) [${ip}]`)
   })
   next()
 })
 
 // ── Middlewares globales ──────────────────────────────────────────────────────
+// Activar solo si hay un proxy/nginx delante (TRUST_PROXY=true)
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1)
+  console.log('   Trust proxy: activado')
+}
+
 app.use(cors())
 app.use(express.json())
 

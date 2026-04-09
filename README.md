@@ -135,6 +135,7 @@ pethealth/
 | `JWT_SECRET` | Clave secreta para firmar tokens JWT | **Sí** |
 | `NODE_ENV` | Entorno de ejecución | No (default: `production`) |
 | `PORT` | Puerto interno del contenedor | No (default: `3001`) |
+| `TRUST_PROXY` | Poner `true` solo si hay un proxy/nginx delante | No (default: desactivado) |
 
 > ⚠️ Sin `JWT_SECRET` el login falla con `secretOrPrivateKey must have a value`.
 
@@ -191,6 +192,33 @@ Authorization: Bearer <token>
 | POST | `/api/exams/:id/values` | Agregar valores de laboratorio |
 | PUT | `/api/exam-values/:id` | Actualizar valor |
 | DELETE | `/api/exam-values/:id` | Eliminar valor |
+
+---
+
+## Despliegue detrás de un proxy / nginx
+
+Si la app corre detrás de un reverse proxy, agrega `TRUST_PROXY=true` a las variables de entorno para que Express lea la IP real del cliente:
+
+```yaml
+environment:
+  - JWT_SECRET=...
+  - TRUST_PROXY=true
+```
+
+El nginx que está delante debe enviar estos headers:
+
+```nginx
+location / {
+    proxy_pass http://pethealth:3001;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 20m;
+}
+```
+
+Sin `TRUST_PROXY=true` la app funciona igual — solo los logs mostrarán la IP del proxy en lugar de la del cliente real.
 
 ---
 
