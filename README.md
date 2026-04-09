@@ -1,67 +1,67 @@
 # PetHealth Tracker 🐾
 
-Aplicación web para llevar el historial médico de tus mascotas. Registra checkups veterinarios, medicamentos, exámenes de laboratorio (con PDF) y fotos de tus perros y gatos — todo en un solo lugar, con soporte para modo oscuro.
+Web application for tracking your pets' medical history. Record vet visits, medications, lab exams (with PDF), and photos of your dogs and cats — all in one place, with dark mode and English/Spanish interface support.
 
 ---
 
-## Tecnologías
+## Tech Stack
 
-| Capa | Stack |
+| Layer | Technology |
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS, React Router, Axios, Lucide |
 | Backend | Node.js, Express, better-sqlite3 |
 | Auth | JWT (jsonwebtoken) + bcryptjs |
-| Archivos | Multer (fotos y PDFs) |
-| Contenedores | Docker (imagen única, frontend + backend) |
+| File uploads | Multer (photos and PDFs) |
+| Containers | Docker (single image, frontend + backend) |
 
 ---
 
-## Requisitos
+## Requirements
 
-- [Docker](https://docs.docker.com/get-docker/) y [Docker Compose](https://docs.docker.com/compose/) instalados.
-- No se necesita Node.js en el host para ejecutar la app en producción.
+- [Docker](https://docs.docker.com/get-docker/) installed.
+- No Node.js needed on the host to run in production.
 
 ---
 
-## Inicio rápido
+## Quick start
 
-### Con Docker Compose (recomendado)
+### With Docker Compose (recommended)
 
-**1. Crea el archivo `.env`** en la raíz del proyecto:
+**1. Create a `.env` file** in the project root:
 
 ```env
-JWT_SECRET=cambia_esto_por_una_clave_larga_y_segura
+JWT_SECRET=change_this_to_a_long_random_secret
 NODE_ENV=production
 PORT=3001
 ```
 
-**2. Levanta la app:**
+**2. Start the app:**
 
 ```bash
 docker compose up --build -d
 ```
 
-**3. Abre el navegador:**
+**3. Open your browser:**
 
 ```
 http://localhost:3000
 ```
 
-Credenciales por defecto: **admin / admin123**
-> Cámbialas inmediatamente desde la interfaz o vía la API.
+Default credentials: **admin / admin123**
+> Change them immediately. On login you can also select your preferred language (Spanish / English).
 
 ---
 
-### Con Docker directamente
+### With Docker directly
 
 ```bash
-# Construir la imagen
+# Build the image
 docker build -t pethealth:latest .
 
-# Ejecutar
+# Run
 docker run -d \
   -p 3000:3001 \
-  -e JWT_SECRET=cambia_esto_por_una_clave_larga_y_segura \
+  -e JWT_SECRET=change_this_to_a_long_random_secret \
   -e NODE_ENV=production \
   -v "$(pwd)/data:/app/data" \
   --name pethealth \
@@ -92,112 +92,26 @@ services:
       - PORT=${PORT:-3001}
 ```
 
-> Las variables se leen del archivo `.env` en la misma carpeta que el `docker-compose.yml`.
+> Variables are read from the `.env` file in the same folder.
 
 ---
 
-## Estructura del proyecto
+## Environment variables
 
-```
-pethealth/
-├── Dockerfile                 # Imagen única (build frontend + backend)
-├── docker-compose.yml
-├── .env                       # Variables de entorno (no subir a git)
-├── data/                      # Volumen persistente (DB + uploads)
-├── backend/
-│   ├── package.json
-│   └── src/
-│       ├── index.js           # Servidor Express (sirve también el frontend)
-│       ├── db.js              # SQLite + seed inicial
-│       ├── middleware/
-│       │   └── auth.js        # Verificación JWT
-│       └── routes/
-│           ├── auth.js        # Login / registro
-│           ├── pets.js        # CRUD mascotas + foto
-│           ├── checkups.js    # Checkups y medicamentos
-│           └── exams.js       # Exámenes y valores
-└── frontend/
-    ├── package.json
-    └── src/
-        ├── main.jsx
-        ├── App.jsx
-        ├── context/           # AuthContext, ThemeContext
-        ├── pages/             # Login, Dashboard, PetProfile, etc.
-        └── components/        # Navbar, PetCard, CheckupCard, etc.
-```
+| Variable | Description | Required |
+|---|---|---|
+| `JWT_SECRET` | Secret key for signing JWT tokens | **Yes** |
+| `NODE_ENV` | Runtime environment | No (default: `production`) |
+| `PORT` | Internal container port | No (default: `3001`) |
+| `TRUST_PROXY` | Set to `true` if running behind a proxy/nginx | No (disabled by default) |
+
+> ⚠️ Without `JWT_SECRET` login will fail with `secretOrPrivateKey must have a value`.
 
 ---
 
-## Variables de entorno
+## Deploying behind a reverse proxy / nginx
 
-| Variable | Descripción | Requerida |
-|---|---|---|
-| `JWT_SECRET` | Clave secreta para firmar tokens JWT | **Sí** |
-| `NODE_ENV` | Entorno de ejecución | No (default: `production`) |
-| `PORT` | Puerto interno del contenedor | No (default: `3001`) |
-| `TRUST_PROXY` | Poner `true` solo si hay un proxy/nginx delante | No (default: desactivado) |
-
-> ⚠️ Sin `JWT_SECRET` el login falla con `secretOrPrivateKey must have a value`.
-
----
-
-## API — Endpoints principales
-
-Todos los endpoints (excepto auth) requieren el header:
-```
-Authorization: Bearer <token>
-```
-
-### Autenticación
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | `/api/auth/login` | Login → devuelve JWT |
-| POST | `/api/auth/register` | Registrar usuario |
-
-### Mascotas
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/pets` | Listar mascotas |
-| POST | `/api/pets` | Crear mascota |
-| GET | `/api/pets/:id` | Detalle de mascota |
-| PUT | `/api/pets/:id` | Actualizar mascota |
-| DELETE | `/api/pets/:id` | Eliminar mascota |
-| POST | `/api/pets/:id/photo` | Subir foto (multipart) |
-
-### Checkups
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/pets/:id/checkups` | Checkups de una mascota |
-| POST | `/api/pets/:id/checkups` | Crear checkup + medicamentos |
-| GET | `/api/checkups/:id` | Detalle de checkup |
-| PUT | `/api/checkups/:id` | Actualizar checkup |
-| DELETE | `/api/checkups/:id` | Eliminar checkup |
-
-### Medicamentos
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/checkups/:id/medications` | Medicamentos de un checkup |
-| POST | `/api/checkups/:id/medications` | Agregar medicamento |
-| PUT | `/api/medications/:id` | Actualizar medicamento |
-| DELETE | `/api/medications/:id` | Eliminar medicamento |
-
-### Exámenes
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | `/api/pets/:id/exams` | Exámenes de una mascota |
-| POST | `/api/pets/:id/exams` | Subir examen (multipart + PDF) |
-| GET | `/api/exams/:id` | Detalle de examen |
-| PUT | `/api/exams/:id` | Actualizar examen |
-| DELETE | `/api/exams/:id` | Eliminar examen + PDF |
-| POST | `/api/exams/:id/values` | Agregar valores de laboratorio |
-| PUT | `/api/exam-values/:id` | Actualizar valor |
-| DELETE | `/api/exam-values/:id` | Eliminar valor |
-
----
-
-## Despliegue detrás de un proxy / nginx
-
-Si la app corre detrás de un reverse proxy, agrega `TRUST_PROXY=true` a las variables de entorno para que Express lea la IP real del cliente:
+If the app runs behind a reverse proxy, add `TRUST_PROXY=true` to the environment variables so Express reads the real client IP:
 
 ```yaml
 environment:
@@ -205,7 +119,7 @@ environment:
   - TRUST_PROXY=true
 ```
 
-El nginx que está delante debe enviar estos headers:
+The nginx in front must forward these headers:
 
 ```nginx
 location / {
@@ -218,53 +132,140 @@ location / {
 }
 ```
 
-Sin `TRUST_PROXY=true` la app funciona igual — solo los logs mostrarán la IP del proxy en lugar de la del cliente real.
+Without `TRUST_PROXY=true` the app works fine — logs will just show the proxy IP instead of the real client IP.
 
 ---
 
-## Comandos útiles
+## Project structure
 
-```bash
-# Ver logs en tiempo real
-docker compose logs -f
-
-# Detener el contenedor
-docker compose down
-
-# Detener y eliminar el volumen de datos (¡borra todo!)
-docker compose down -v
-
-# Reconstruir después de cambios en el código
-docker compose up --build -d
-
-# Acceder al shell del contenedor
-docker exec -it pethealth sh
-
-# Publicar en Docker Hub
-docker build -t usuario/pethealth:latest .
-docker push usuario/pethealth:latest
+```
+pethealth/
+├── Dockerfile                 # Single image (builds frontend + serves with Express)
+├── docker-compose.yml
+├── .env                       # Environment variables (do not commit to git)
+├── data/                      # Persistent volume (database + uploaded files)
+├── backend/
+│   ├── package.json
+│   └── src/
+│       ├── index.js           # Express server (also serves the compiled frontend)
+│       ├── db.js              # SQLite + demo seed data
+│       ├── middleware/
+│       │   └── auth.js        # JWT token verification
+│       └── routes/
+│           ├── auth.js        # Login and registration
+│           ├── pets.js        # Pet CRUD and photo upload
+│           ├── checkups.js    # Vet visits and medications
+│           └── exams.js       # Lab exams and values
+└── frontend/
+    ├── package.json
+    └── src/
+        ├── translations.js    # UI strings in Spanish and English
+        ├── main.jsx
+        ├── App.jsx
+        ├── context/           # AuthContext, ThemeContext, LanguageContext
+        ├── pages/             # Login, Dashboard, PetProfile, forms
+        └── components/        # Navbar, PetCard, CheckupCard, ExamViewer, etc.
 ```
 
 ---
 
-## Persistencia de datos
+## API Reference
 
-El directorio `./data/` se monta como volumen en el contenedor:
+All endpoints (except auth) require the header:
+```
+Authorization: Bearer <token>
+```
+
+### Auth
+| Method | Route | Description |
+|---|---|---|
+| POST | `/api/auth/login` | Sign in → returns JWT token |
+| POST | `/api/auth/register` | Register a new user |
+
+### Pets
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/pets` | List all pets |
+| POST | `/api/pets` | Create a pet |
+| GET | `/api/pets/:id` | Get pet details |
+| PUT | `/api/pets/:id` | Update a pet |
+| DELETE | `/api/pets/:id` | Delete a pet |
+| POST | `/api/pets/:id/photo` | Upload photo (multipart) |
+
+### Vet checkups
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/pets/:id/checkups` | List checkups for a pet |
+| POST | `/api/pets/:id/checkups` | Create checkup with medications |
+| GET | `/api/checkups/:id` | Get checkup details |
+| PUT | `/api/checkups/:id` | Update a checkup |
+| DELETE | `/api/checkups/:id` | Delete a checkup |
+
+### Medications
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/checkups/:id/medications` | List medications for a checkup |
+| POST | `/api/checkups/:id/medications` | Add a medication |
+| PUT | `/api/medications/:id` | Update a medication |
+| DELETE | `/api/medications/:id` | Delete a medication |
+
+### Lab exams
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/pets/:id/exams` | List exams for a pet |
+| POST | `/api/pets/:id/exams` | Create exam (multipart + optional PDF) |
+| GET | `/api/exams/:id` | Get exam details |
+| PUT | `/api/exams/:id` | Update an exam |
+| DELETE | `/api/exams/:id` | Delete exam and its PDF |
+| POST | `/api/exams/:id/values` | Add lab values |
+| PUT | `/api/exam-values/:id` | Update a value |
+| DELETE | `/api/exam-values/:id` | Delete a value |
+
+---
+
+## Useful commands
+
+```bash
+# Stream logs in real time
+docker compose logs -f
+
+# Stop the container
+docker compose down
+
+# Stop and delete all data (irreversible!)
+docker compose down -v
+
+# Rebuild after code changes
+docker compose up --build -d
+
+# Open a shell inside the container
+docker exec -it pethealth sh
+
+# Publish to Docker Hub
+docker build -t username/pethealth:latest .
+docker push username/pethealth:latest
+```
+
+---
+
+## Data persistence
+
+The `./data/` directory is mounted as a volume inside the container:
 
 ```
 data/
-├── pethealth.db          # Base de datos SQLite
+├── pethealth.db          # SQLite database
 └── uploads/
-    ├── photos/           # Fotos de mascotas
-    └── pdfs/             # PDFs de exámenes
+    ├── photos/           # Pet photos
+    └── pdfs/             # Exam PDFs
 ```
 
-Para hacer un backup, basta con copiar esta carpeta.
+To back up your data, just copy this folder.
 
 ---
 
-## Notas de seguridad
+## Security notes
 
-- **Agrega `.env` a tu `.gitignore`** para no exponer el `JWT_SECRET`.
-- Usa una clave larga y aleatoria: `openssl rand -hex 32`
-- Las contraseñas se almacenan hasheadas con bcrypt (saltRounds: 10).
+- **Add `.env` to your `.gitignore`** to avoid exposing `JWT_SECRET`.
+- Generate a secure key with: `openssl rand -hex 32`
+- Passwords are stored hashed with bcrypt (10 salt rounds).
