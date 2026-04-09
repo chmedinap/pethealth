@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #FAFAF7;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F0F4F1;
+  --text-primary: #2D3142;
+  --text-secondary: #5A5F7A;
+  --text-muted: #9299B0;
+  --color-primary: #5B8A6E;
+  --color-primary-hover: #4A7560;
+  --color-secondary: #E8A87C;
+  --color-accent: #7BAFD4;
+  --color-danger: #E07070;
+  --color-warning: #F0C060;
+  --color-success: #6BBF8E;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.07);
+  --border-color: #E5EAE7;
+}
+
+.dark {
+  --bg-primary: #1A1F2E;
+  --bg-secondary: #242938;
+  --bg-tertiary: #2E3447;
+  --text-primary: #E8EAF0;
+  --text-secondary: #A8ABBE;
+  --text-muted: #6B7089;
+  --color-primary: #7BAF94;
+  --color-primary-hover: #8FBFA6;
+  --color-secondary: #D4926A;
+  --color-accent: #7BAFD4;
+  --color-danger: #E08888;
+  --color-warning: #F0C878;
+  --color-success: #7BCFA0;
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.25);
+  --border-color: #363C52;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Nunito', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
