@@ -1,5 +1,8 @@
 const Database = require('better-sqlite3')
 const bcrypt = require('bcryptjs')
+const fs = require('fs')
+
+fs.mkdirSync('/app/data', { recursive: true })
 
 const db = new Database('/app/data/pethealth.db')
 
