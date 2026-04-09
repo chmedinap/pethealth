@@ -9,6 +9,7 @@ const authRouter = require('./routes/auth')
 const petsRouter = require('./routes/pets')
 const { petRouter: checkupPetRouter, checkupRouter, medicationRouter } = require('./routes/checkups')
 const { petRouter: examPetRouter, examRouter, examValueRouter } = require('./routes/exams')
+const attachmentsRouter = require('./routes/attachments')
 const authMiddleware = require('./middleware/auth')
 
 const app = express()
@@ -16,6 +17,7 @@ const app = express()
 // ── Directorios de datos ──────────────────────────────────────────────────────
 fs.mkdirSync('/app/data/uploads/photos', { recursive: true })
 fs.mkdirSync('/app/data/uploads/pdfs', { recursive: true })
+fs.mkdirSync('/app/data/uploads/attachments', { recursive: true })
 
 // ── Request logger ────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -61,6 +63,9 @@ app.use('/api/exams', authMiddleware, examRouter)
 
 // /api/exam-values — operaciones sobre valores individuales
 app.use('/api/exam-values', authMiddleware, examValueRouter)
+
+// /api/attachments — eliminar archivos adjuntos
+app.use('/api/attachments', authMiddleware, attachmentsRouter)
 
 // ── Frontend compilado (SPA) ──────────────────────────────────────────────────
 const publicDir = path.join(__dirname, '../public')

@@ -74,6 +74,16 @@ db.exec(`
     reference_range TEXT,
     is_abnormal INTEGER DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS attachments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT CHECK(entity_type IN ('checkup', 'exam')) NOT NULL,
+    entity_id INTEGER NOT NULL,
+    file_url TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_type TEXT CHECK(file_type IN ('pdf', 'image')) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `)
 
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get()

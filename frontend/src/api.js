@@ -44,6 +44,15 @@ export const deleteCheckup = (id) => api.delete(`/checkups/${id}`)
 // Exams
 export const getPetExams = (petId) => api.get(`/pets/${petId}/exams`)
 export const createExam = (petId, formData) => api.post(`/pets/${petId}/exams`, formData)
+export const updateExam = (id, data) => api.put(`/exams/${id}`, data)
 export const deleteExam = (id) => api.delete(`/exams/${id}`)
+
+// Checkup edit
+export const updateCheckup = (id, data) => api.put(`/checkups/${id}`, data)
+
+// Attachments
+export const uploadCheckupAttachment = (id, formData) => api.post(`/checkups/${id}/attachments`, formData)
+export const uploadExamAttachment = (id, formData) => api.post(`/exams/${id}/attachments`, formData)
+export const deleteAttachment = (id) => api.delete(`/attachments/${id}`)
 
 export default api

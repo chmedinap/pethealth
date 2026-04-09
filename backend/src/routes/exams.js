@@ -4,14 +4,26 @@ const fs = require('fs')
 const multer = require('multer')
 const db = require('../db')
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function getExamValues(examId) {
   return db.prepare('SELECT * FROM exam_values WHERE exam_id = ?').all(examId)
 }
 
-// ── Router montado en /api/pets ───────────────────────────────────────────────
-// Maneja: GET/POST /api/pets/:petId/exams
-const petRouter = express.Router()
+function getAttachments(examId) {
+  return db.prepare(
+    "SELECT * FROM attachments WHERE entity_type = 'exam' AND entity_id = ? ORDER BY created_at ASC"
+  ).all(examId)
+}
 
+function fullExam(exam) {
+  return {
+    ...exam,
+    exam_values: getExamValues(exam.id),
+    attachments: getAttachments(exam.id),
+  }
+}
+
+// ── Multer para PDF principal del examen ──────────────────────────────────────
 const pdfStorage = multer.diskStorage({
   destination: '/app/data/uploads/pdfs/',
   filename: (req, file, cb) => {
@@ -23,12 +35,32 @@ const uploadPdf = multer({
   fileFilter: (req, file, cb) => cb(null, file.mimetype === 'application/pdf'),
 })
 
+// ── Multer para adjuntos del examen ──────────────────────────────────────────
+const attachmentStorage = multer.diskStorage({
+  destination: '/app/data/uploads/attachments/',
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname)
+    cb(null, `exam-${req.params.id}-${Date.now()}${ext}`)
+  },
+})
+const uploadAttachment = multer({
+  storage: attachmentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+    cb(null, allowed.includes(file.mimetype))
+  },
+})
+
+// ── Router montado en /api/pets ───────────────────────────────────────────────
+const petRouter = express.Router()
+
 petRouter.get('/:petId/exams', (req, res) => {
   try {
     const exams = db.prepare(
       'SELECT * FROM exams WHERE pet_id = ? ORDER BY exam_date DESC'
     ).all(req.params.petId)
-    res.json(exams.map(e => ({ ...e, exam_values: getExamValues(e.id) })))
+    res.json(exams.map(fullExam))
   } catch (err) {
     console.error('GET /pets/:petId/exams', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -69,8 +101,7 @@ petRouter.post('/:petId/exams', uploadPdf.single('pdf'), (req, res) => {
     })
 
     const examId = insert()
-    const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId)
-    res.status(201).json({ ...exam, exam_values: getExamValues(examId) })
+    res.status(201).json(fullExam(db.prepare('SELECT * FROM exams WHERE id = ?').get(examId)))
   } catch (err) {
     console.error('POST /pets/:petId/exams', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -78,14 +109,13 @@ petRouter.post('/:petId/exams', uploadPdf.single('pdf'), (req, res) => {
 })
 
 // ── Router montado en /api/exams ──────────────────────────────────────────────
-// Maneja: GET/PUT/DELETE /api/exams/:id y values anidados
 const examRouter = express.Router()
 
 examRouter.get('/:id', (req, res) => {
   try {
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(req.params.id)
     if (!exam) return res.status(404).json({ error: 'Examen no encontrado' })
-    res.json({ ...exam, exam_values: getExamValues(exam.id) })
+    res.json(fullExam(exam))
   } catch (err) {
     console.error('GET /exams/:id', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -104,8 +134,7 @@ examRouter.put('/:id', (req, res) => {
     const setClause = fields.map(f => `${f} = ?`).join(', ')
     db.prepare(`UPDATE exams SET ${setClause} WHERE id = ?`).run(...fields.map(f => req.body[f]), req.params.id)
 
-    const updated = db.prepare('SELECT * FROM exams WHERE id = ?').get(req.params.id)
-    res.json({ ...updated, exam_values: getExamValues(updated.id) })
+    res.json(fullExam(db.prepare('SELECT * FROM exams WHERE id = ?').get(req.params.id)))
   } catch (err) {
     console.error('PUT /exams/:id', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -117,9 +146,13 @@ examRouter.delete('/:id', (req, res) => {
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(req.params.id)
     if (!exam) return res.status(404).json({ error: 'Examen no encontrado' })
 
-    if (exam.pdf_url) {
-      fs.unlink(`/app/data${exam.pdf_url}`, () => {})
+    if (exam.pdf_url) fs.unlink(`/app/data${exam.pdf_url}`, () => {})
+
+    const attachments = getAttachments(req.params.id)
+    for (const att of attachments) {
+      fs.unlink(`/app/data${att.file_url}`, () => {})
     }
+
     db.prepare('DELETE FROM exams WHERE id = ?').run(req.params.id)
     res.json({ message: 'Examen eliminado' })
   } catch (err) {
@@ -154,8 +187,52 @@ examRouter.post('/:id/values', (req, res) => {
   }
 })
 
+// GET /api/exams/:id/attachments
+examRouter.get('/:id/attachments', (req, res) => {
+  try {
+    res.json(getAttachments(req.params.id))
+  } catch (err) {
+    console.error('GET /exams/:id/attachments', err.message)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/exams/:id/attachments
+examRouter.post('/:id/attachments', uploadAttachment.single('file'), (req, res) => {
+  try {
+    const exam = db.prepare('SELECT id FROM exams WHERE id = ?').get(req.params.id)
+    if (!exam) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(404).json({ error: 'Examen no encontrado' })
+    }
+
+    const count = db.prepare(
+      "SELECT COUNT(*) as cnt FROM attachments WHERE entity_type = 'exam' AND entity_id = ?"
+    ).get(req.params.id)
+
+    if (count.cnt >= 3) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(400).json({ error: 'Máximo 3 archivos por examen' })
+    }
+
+    if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' })
+
+    const file_url = `/uploads/attachments/${req.file.filename}`
+    const file_type = req.file.mimetype === 'application/pdf' ? 'pdf' : 'image'
+
+    const result = db.prepare(`
+      INSERT INTO attachments (entity_type, entity_id, file_url, file_name, file_type)
+      VALUES ('exam', ?, ?, ?, ?)
+    `).run(req.params.id, file_url, req.file.originalname, file_type)
+
+    res.status(201).json(db.prepare('SELECT * FROM attachments WHERE id = ?').get(result.lastInsertRowid))
+  } catch (err) {
+    console.error('POST /exams/:id/attachments', err.message)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
 // ── Router montado en /api/exam-values ───────────────────────────────────────
-// Maneja: PUT/DELETE /api/exam-values/:id
 const examValueRouter = express.Router()
 
 examValueRouter.put('/:id', (req, res) => {

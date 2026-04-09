@@ -199,7 +199,14 @@ export default function PetProfile() {
           {checkups.length === 0
             ? <EmptySection emoji="🩺" text={t.profile.noCheckups} />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {checkups.map(c => <CheckupCard key={c.id} checkup={c} onDelete={did => setCheckups(prev => prev.filter(x => x.id !== did))} />)}
+                {checkups.map(c => (
+                <CheckupCard
+                  key={c.id}
+                  checkup={c}
+                  onDelete={did => setCheckups(prev => prev.filter(x => x.id !== did))}
+                  onUpdate={updated => setCheckups(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                />
+              ))}
               </div>
           }
         </section>
@@ -210,7 +217,14 @@ export default function PetProfile() {
           {exams.length === 0
             ? <EmptySection emoji="🧪" text={t.profile.noExams} />
             : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {exams.map(e => <ExamViewer key={e.id} exam={e} onDelete={did => setExams(prev => prev.filter(x => x.id !== did))} />)}
+                {exams.map(e => (
+                <ExamViewer
+                  key={e.id}
+                  exam={e}
+                  onDelete={did => setExams(prev => prev.filter(x => x.id !== did))}
+                  onUpdate={updated => setExams(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                />
+              ))}
               </div>
           }
         </section>

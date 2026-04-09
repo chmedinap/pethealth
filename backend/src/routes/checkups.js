@@ -1,12 +1,46 @@
 const express = require('express')
+const path = require('path')
+const fs = require('fs')
+const multer = require('multer')
 const db = require('../db')
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function getMedications(checkupId) {
   return db.prepare('SELECT * FROM medications WHERE checkup_id = ?').all(checkupId)
 }
 
+function getAttachments(checkupId) {
+  return db.prepare(
+    "SELECT * FROM attachments WHERE entity_type = 'checkup' AND entity_id = ? ORDER BY created_at ASC"
+  ).all(checkupId)
+}
+
+function fullCheckup(checkup) {
+  return {
+    ...checkup,
+    medications: getMedications(checkup.id),
+    attachments: getAttachments(checkup.id),
+  }
+}
+
+// ── Multer para adjuntos de checkup ──────────────────────────────────────────
+const attachmentStorage = multer.diskStorage({
+  destination: '/app/data/uploads/attachments/',
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname)
+    cb(null, `checkup-${req.params.id}-${Date.now()}${ext}`)
+  },
+})
+const uploadAttachment = multer({
+  storage: attachmentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+    cb(null, allowed.includes(file.mimetype))
+  },
+})
+
 // ── Router montado en /api/pets ───────────────────────────────────────────────
-// Maneja: GET/POST /api/pets/:petId/checkups
 const petRouter = express.Router()
 
 petRouter.get('/:petId/checkups', (req, res) => {
@@ -14,7 +48,7 @@ petRouter.get('/:petId/checkups', (req, res) => {
     const checkups = db.prepare(
       'SELECT * FROM checkups WHERE pet_id = ? ORDER BY checkup_date DESC'
     ).all(req.params.petId)
-    res.json(checkups.map(c => ({ ...c, medications: getMedications(c.id) })))
+    res.json(checkups.map(fullCheckup))
   } catch (err) {
     console.error('GET /pets/:petId/checkups', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -48,8 +82,7 @@ petRouter.post('/:petId/checkups', (req, res) => {
     })
 
     const checkupId = insert()
-    const checkup = db.prepare('SELECT * FROM checkups WHERE id = ?').get(checkupId)
-    res.status(201).json({ ...checkup, medications: getMedications(checkupId) })
+    res.status(201).json(fullCheckup(db.prepare('SELECT * FROM checkups WHERE id = ?').get(checkupId)))
   } catch (err) {
     console.error('POST /pets/:petId/checkups', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -57,14 +90,13 @@ petRouter.post('/:petId/checkups', (req, res) => {
 })
 
 // ── Router montado en /api/checkups ──────────────────────────────────────────
-// Maneja: GET/PUT/DELETE /api/checkups/:id y medications anidados
 const checkupRouter = express.Router()
 
 checkupRouter.get('/:id', (req, res) => {
   try {
     const checkup = db.prepare('SELECT * FROM checkups WHERE id = ?').get(req.params.id)
     if (!checkup) return res.status(404).json({ error: 'Checkup no encontrado' })
-    res.json({ ...checkup, medications: getMedications(checkup.id) })
+    res.json(fullCheckup(checkup))
   } catch (err) {
     console.error('GET /checkups/:id', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -83,8 +115,7 @@ checkupRouter.put('/:id', (req, res) => {
     const setClause = fields.map(f => `${f} = ?`).join(', ')
     db.prepare(`UPDATE checkups SET ${setClause} WHERE id = ?`).run(...fields.map(f => req.body[f]), req.params.id)
 
-    const updated = db.prepare('SELECT * FROM checkups WHERE id = ?').get(req.params.id)
-    res.json({ ...updated, medications: getMedications(updated.id) })
+    res.json(fullCheckup(db.prepare('SELECT * FROM checkups WHERE id = ?').get(req.params.id)))
   } catch (err) {
     console.error('PUT /checkups/:id', err.message)
     res.status(500).json({ error: 'Error interno del servidor' })
@@ -95,6 +126,13 @@ checkupRouter.delete('/:id', (req, res) => {
   try {
     const checkup = db.prepare('SELECT * FROM checkups WHERE id = ?').get(req.params.id)
     if (!checkup) return res.status(404).json({ error: 'Checkup no encontrado' })
+
+    // Eliminar archivos adjuntos físicos
+    const attachments = getAttachments(req.params.id)
+    for (const att of attachments) {
+      fs.unlink(`/app/data${att.file_url}`, () => {})
+    }
+
     db.prepare('DELETE FROM checkups WHERE id = ?').run(req.params.id)
     res.json({ message: 'Checkup eliminado' })
   } catch (err) {
@@ -134,8 +172,52 @@ checkupRouter.post('/:id/medications', (req, res) => {
   }
 })
 
+// GET /api/checkups/:id/attachments
+checkupRouter.get('/:id/attachments', (req, res) => {
+  try {
+    res.json(getAttachments(req.params.id))
+  } catch (err) {
+    console.error('GET /checkups/:id/attachments', err.message)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
+// POST /api/checkups/:id/attachments
+checkupRouter.post('/:id/attachments', uploadAttachment.single('file'), (req, res) => {
+  try {
+    const checkup = db.prepare('SELECT id FROM checkups WHERE id = ?').get(req.params.id)
+    if (!checkup) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(404).json({ error: 'Checkup no encontrado' })
+    }
+
+    const count = db.prepare(
+      "SELECT COUNT(*) as cnt FROM attachments WHERE entity_type = 'checkup' AND entity_id = ?"
+    ).get(req.params.id)
+
+    if (count.cnt >= 3) {
+      if (req.file) fs.unlink(req.file.path, () => {})
+      return res.status(400).json({ error: 'Máximo 3 archivos por checkup' })
+    }
+
+    if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' })
+
+    const file_url = `/uploads/attachments/${req.file.filename}`
+    const file_type = req.file.mimetype === 'application/pdf' ? 'pdf' : 'image'
+
+    const result = db.prepare(`
+      INSERT INTO attachments (entity_type, entity_id, file_url, file_name, file_type)
+      VALUES ('checkup', ?, ?, ?, ?)
+    `).run(req.params.id, file_url, req.file.originalname, file_type)
+
+    res.status(201).json(db.prepare('SELECT * FROM attachments WHERE id = ?').get(result.lastInsertRowid))
+  } catch (err) {
+    console.error('POST /checkups/:id/attachments', err.message)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
 // ── Router montado en /api/medications ───────────────────────────────────────
-// Maneja: PUT/DELETE /api/medications/:id
 const medicationRouter = express.Router()
 
 medicationRouter.put('/:id', (req, res) => {
