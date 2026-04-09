@@ -12,8 +12,7 @@ Aplicación web para llevar el historial médico de tus mascotas. Registra check
 | Backend | Node.js, Express, better-sqlite3 |
 | Auth | JWT (jsonwebtoken) + bcryptjs |
 | Archivos | Multer (fotos y PDFs) |
-| Servidor | Nginx (proxy + SPA routing) |
-| Contenedores | Docker + Docker Compose |
+| Contenedores | Docker (imagen única, frontend + backend) |
 
 ---
 
@@ -26,16 +25,26 @@ Aplicación web para llevar el historial médico de tus mascotas. Registra check
 
 ## Inicio rápido
 
+### Con Docker Compose (recomendado)
+
+**1. Crea el archivo `.env`** en la raíz del proyecto:
+
+```env
+JWT_SECRET=cambia_esto_por_una_clave_larga_y_segura
+NODE_ENV=production
+PORT=3001
+```
+
+**2. Levanta la app:**
+
 ```bash
-# 1. Clona el repositorio
-git clone <repo-url>
-cd pethealth
-
-# 2. Levanta los contenedores
 docker compose up --build -d
+```
 
-# 3. Abre el navegador
-open http://localhost:3000
+**3. Abre el navegador:**
+
+```
+http://localhost:3000
 ```
 
 Credenciales por defecto: **admin / admin123**
@@ -43,17 +52,62 @@ Credenciales por defecto: **admin / admin123**
 
 ---
 
+### Con Docker directamente
+
+```bash
+# Construir la imagen
+docker build -t pethealth:latest .
+
+# Ejecutar
+docker run -d \
+  -p 3000:3001 \
+  -e JWT_SECRET=cambia_esto_por_una_clave_larga_y_segura \
+  -e NODE_ENV=production \
+  -v "$(pwd)/data:/app/data" \
+  --name pethealth \
+  pethealth:latest
+```
+
+---
+
+## docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pethealth
+    restart: unless-stopped
+    ports:
+      - "3000:3001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-3001}
+```
+
+> Las variables se leen del archivo `.env` en la misma carpeta que el `docker-compose.yml`.
+
+---
+
 ## Estructura del proyecto
 
 ```
 pethealth/
+├── Dockerfile                 # Imagen única (build frontend + backend)
 ├── docker-compose.yml
+├── .env                       # Variables de entorno (no subir a git)
 ├── data/                      # Volumen persistente (DB + uploads)
 ├── backend/
-│   ├── Dockerfile
 │   ├── package.json
 │   └── src/
-│       ├── index.js           # Servidor Express
+│       ├── index.js           # Servidor Express (sirve también el frontend)
 │       ├── db.js              # SQLite + seed inicial
 │       ├── middleware/
 │       │   └── auth.js        # Verificación JWT
@@ -61,11 +115,8 @@ pethealth/
 │           ├── auth.js        # Login / registro
 │           ├── pets.js        # CRUD mascotas + foto
 │           ├── checkups.js    # Checkups y medicamentos
-│           ├── exams.js       # Exámenes y valores
-│           └── users.js
+│           └── exams.js       # Exámenes y valores
 └── frontend/
-    ├── Dockerfile
-    ├── nginx.conf
     ├── package.json
     └── src/
         ├── main.jsx
@@ -79,13 +130,13 @@ pethealth/
 
 ## Variables de entorno
 
-El servicio `backend` en `docker-compose.yml` expone estas variables. Edítalas antes de desplegar en producción:
-
-| Variable | Descripción | Valor por defecto |
+| Variable | Descripción | Requerida |
 |---|---|---|
-| `JWT_SECRET` | Clave secreta para firmar tokens JWT | `cambiar_esto_en_produccion_...` |
-| `NODE_ENV` | Entorno de ejecución | `production` |
-| `PORT` | Puerto interno del backend | `3001` |
+| `JWT_SECRET` | Clave secreta para firmar tokens JWT | **Sí** |
+| `NODE_ENV` | Entorno de ejecución | No (default: `production`) |
+| `PORT` | Puerto interno del contenedor | No (default: `3001`) |
+
+> ⚠️ Sin `JWT_SECRET` el login falla con `secretOrPrivateKey must have a value`.
 
 ---
 
@@ -149,7 +200,7 @@ Authorization: Bearer <token>
 # Ver logs en tiempo real
 docker compose logs -f
 
-# Detener los contenedores
+# Detener el contenedor
 docker compose down
 
 # Detener y eliminar el volumen de datos (¡borra todo!)
@@ -158,15 +209,19 @@ docker compose down -v
 # Reconstruir después de cambios en el código
 docker compose up --build -d
 
-# Acceder al shell del backend
-docker exec -it pethealth-backend sh
+# Acceder al shell del contenedor
+docker exec -it pethealth sh
+
+# Publicar en Docker Hub
+docker build -t usuario/pethealth:latest .
+docker push usuario/pethealth:latest
 ```
 
 ---
 
 ## Persistencia de datos
 
-El directorio `./data/` se monta como volumen en el backend:
+El directorio `./data/` se monta como volumen en el contenedor:
 
 ```
 data/
@@ -182,6 +237,6 @@ Para hacer un backup, basta con copiar esta carpeta.
 
 ## Notas de seguridad
 
-- Cambia `JWT_SECRET` por una cadena aleatoria larga antes de exponer la app a Internet.
-- El backend **no** es accesible directamente desde el host — solo el frontend en el puerto 3000.
+- **Agrega `.env` a tu `.gitignore`** para no exponer el `JWT_SECRET`.
+- Usa una clave larga y aleatoria: `openssl rand -hex 32`
 - Las contraseñas se almacenan hasheadas con bcrypt (saltRounds: 10).
