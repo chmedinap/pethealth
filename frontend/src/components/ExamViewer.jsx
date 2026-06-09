@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, FlaskConical, Pencil, X, Check } from 'lucide-react'
+import { ChevronDown, FlaskConical, Pencil, X, Check, Paperclip, Calendar } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { deleteExam, updateExam, uploadExamAttachment, deleteAttachment } from '../api'
 
 const inputStyle = {
-  width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
-  borderRadius: '8px', padding: '7px 10px', fontSize: '0.85rem', color: 'var(--text-primary)',
-  fontFamily: 'Nunito, sans-serif', outline: 'none', boxSizing: 'border-box',
+  width: '100%', background: 'var(--surface-3)', border: '1.5px solid var(--border-2)',
+  borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: '14px', color: 'var(--text)',
+  fontFamily: 'var(--f-pet)', outline: 'none', boxSizing: 'border-box',
 }
 
 function formatDate(dateStr) {
@@ -48,19 +48,14 @@ function AttachmentsSection({ attachments, setAttachments, entityId, t }) {
   }
 
   return (
-    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '4px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {t.exam.attachments}
-        </span>
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span className="t-label muted-3">{t.exam.attachments}</span>
         {attachments.length < 3 && (
           <>
             <input ref={fileInputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={handleUpload} />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '4px 10px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '0.78rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: 'var(--text-secondary)' }}
-            >
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="btn btn-ghost btn-sm">
+              <Paperclip size={14} />
               {uploading ? t.exam.uploading : `+ ${t.exam.attachBtn}`}
             </button>
           </>
@@ -68,41 +63,38 @@ function AttachmentsSection({ attachments, setAttachments, entityId, t }) {
       </div>
 
       {attachments.length === 0 ? (
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{t.exam.noAttachments}</p>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', fontStyle: 'italic', margin: 0 }}>{t.exam.noAttachments}</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {attachments.map(att => (
-            <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-tertiary)', borderRadius: '8px', padding: '7px 10px' }}>
-              {att.file_type === 'image' ? (
-                <img
-                  src={att.file_url}
-                  alt={att.file_name}
-                  style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
-                  onClick={() => window.open(att.file_url, '_blank')}
-                />
-              ) : (
-                <span style={{ fontSize: '1.4rem', flexShrink: 0, cursor: 'pointer' }} onClick={() => window.open(att.file_url, '_blank')}>📄</span>
-              )}
-              <span
-                onClick={() => window.open(att.file_url, '_blank')}
-                style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-              >
-                {att.file_name}
-              </span>
-              <button onClick={() => handleDelete(att.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', flexShrink: 0, padding: '2px' }}>
-                <X size={14} />
-              </button>
-            </div>
-          ))}
+        <div className="attach">
+          {attachments.map(att => {
+            const ext = att.file_name?.split('.').pop()?.toUpperCase() || 'FILE'
+            return (
+              <div key={att.id} className="attach-item" style={{ cursor: 'pointer' }} onClick={() => window.open(att.file_url, '_blank')}>
+                {att.file_type === 'image'
+                  ? <img src={att.file_url} alt={att.file_name} style={{ width: 30, height: 36, borderRadius: 6, objectFit: 'cover' }} />
+                  : <div className="fic">{ext}</div>
+                }
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
+                  {att.file_name}
+                </span>
+                <button
+                  onClick={e => { e.stopPropagation(); handleDelete(att.id) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, display: 'flex' }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-export default function ExamViewer({ exam, onDelete, onUpdate }) {
+export default function ExamViewer({ exam, index = 0, onDelete, onUpdate }) {
   const { t } = useLanguage()
-  const [expanded, setExpanded] = useState(false)
+  const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -146,130 +138,129 @@ export default function ExamViewer({ exam, onDelete, onUpdate }) {
 
   function setField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
 
+  const toggle = () => { setOpen(o => !o); if (editing) setEditing(false) }
+
   return (
-    <div style={{ background: 'var(--bg-secondary)', borderRadius: '16px', border: '1px solid var(--border-color)', borderLeft: '4px solid var(--color-accent)', boxShadow: 'var(--shadow-card)', overflow: 'hidden' }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', flexWrap: 'wrap' }}>
-        <FlaskConical size={17} color="var(--color-accent)" strokeWidth={2.2} style={{ flexShrink: 0 }} />
-
-        <div onClick={() => { setExpanded(e => !e); setEditing(false) }} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{exam.exam_type}</span>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{formatDate(exam.exam_date)}</span>
-            {exam.lab_name && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>· {exam.lab_name}</span>}
-          </div>
-        </div>
-
-        {exam.pdf_url && (
-          <span style={{ background: 'color-mix(in srgb, var(--color-accent) 14%, transparent)', color: 'var(--color-accent)', fontSize: '0.72rem', fontWeight: 700, padding: '3px 9px', borderRadius: '20px', flexShrink: 0 }}>PDF</span>
-        )}
-
-        {/* Edit toggle */}
-        <button
-          onClick={() => { setExpanded(true); setEditing(e => !e) }}
-          title={t.exam.editBtn}
-          style={{ background: editing ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '5px 8px', cursor: 'pointer', color: editing ? 'var(--color-accent)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
-        >
-          <Pencil size={13} />
-        </button>
-
-        <span onClick={() => { setExpanded(e => !e); setEditing(false) }} style={{ color: 'var(--text-muted)', flexShrink: 0, cursor: 'pointer' }}>
-          {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </span>
+    <div className="tl-item" style={{ animationDelay: `${index * 80}ms` }}>
+      <div className="tl-dot is-exam">
+        <FlaskConical size={10} style={{ color: 'var(--accent-ink)' }} />
       </div>
 
-      {/* Body */}
-      {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border-color)' }}>
-          <div style={{ paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="rec" data-open={open ? '1' : '0'}>
+        {/* Header */}
+        <div className="rec-head" onClick={toggle}>
+          <div className="rec-ic exam">
+            <FlaskConical size={20} />
+          </div>
+          <div className="rec-ttl">
+            <div className="r1">
+              <h4>{exam.exam_type}</h4>
+              {attachments.length > 0 && (
+                <span className="badge badge-neutral"><Paperclip size={12} /> {attachments.length}</span>
+              )}
+              {exam.pdf_url && <span className="badge badge-neutral">PDF</span>}
+            </div>
+            <div className="r2">
+              <span><Calendar size={13} /> {formatDate(exam.exam_date)}</span>
+              {exam.lab_name && <><span>·</span><span>{exam.lab_name}</span></>}
+            </div>
+          </div>
+          <ChevronDown size={20} className="rec-chev" />
+        </div>
 
-            {editing ? (
-              /* ── Edit form ── */
-              <>
-                <LabelInput label={t.addExam?.examType || 'Tipo de examen'} value={editForm.exam_type} onChange={v => setField('exam_type', v)} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <LabelInput label={t.addExam?.date || 'Fecha'} type="date" value={editForm.exam_date} onChange={v => setField('exam_date', v)} />
-                  <LabelInput label={t.addExam?.lab || 'Laboratorio'} value={editForm.lab_name} onChange={v => setField('lab_name', v)} />
-                </div>
-                <LabelInput label={t.exam.notes} textarea value={editForm.notes} onChange={v => setField('notes', v)} />
-
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button onClick={handleCancel} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <X size={13} /> {t.exam.cancelBtn}
-                  </button>
-                  <button onClick={handleSave} disabled={saving} style={{ background: 'var(--color-accent)', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.82rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Check size={13} /> {saving ? t.common.saving : t.exam.saveBtn}
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* ── Read-only view ── */
-              <>
-                {exam.pdf_url && (
-                  <button onClick={() => window.open(exam.pdf_url, '_blank')} style={{ alignSelf: 'flex-start', background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)', color: 'var(--color-accent)', border: '1px solid color-mix(in srgb, var(--color-accent) 30%, transparent)', borderRadius: '8px', padding: '7px 14px', fontSize: '0.85rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', cursor: 'pointer' }}>
-                    {t.exam.viewPdf}
-                  </button>
-                )}
-
-                {exam.notes && (
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t.exam.notes}</span>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.88rem', color: 'var(--text-primary)', fontStyle: 'italic' }}>{exam.notes}</p>
+        {/* Body */}
+        <div className="rec-body">
+          <div>
+            <div className="rec-inner rec-inner-pad">
+              {editing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <LabelInput label={t.addExam?.examType || 'Tipo de examen'} value={editForm.exam_type} onChange={v => setField('exam_type', v)} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <LabelInput label={t.addExam?.date || 'Fecha'} type="date" value={editForm.exam_date} onChange={v => setField('exam_date', v)} />
+                    <LabelInput label={t.addExam?.lab || 'Laboratorio'} value={editForm.lab_name} onChange={v => setField('lab_name', v)} />
                   </div>
-                )}
+                  <LabelInput label={t.exam.notes} textarea value={editForm.notes} onChange={v => setField('notes', v)} />
 
-                {exam.exam_values?.length > 0 && (
-                  <div>
-                    <p style={{ margin: '0 0 8px', fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{t.exam.results}</p>
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                        <thead>
-                          <tr style={{ background: 'var(--bg-tertiary)' }}>
-                            {[t.exam.param, t.exam.value, t.exam.unit, t.exam.range, t.exam.status].map(h => (
-                              <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 800, color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {exam.exam_values.map(val => (
-                            <tr key={val.id} style={{ background: val.is_abnormal ? 'color-mix(in srgb, var(--color-danger) 8%, transparent)' : 'transparent', borderTop: '1px solid var(--border-color)' }}>
-                              <td style={{ padding: '7px 10px', fontWeight: 600, color: 'var(--text-primary)' }}>{val.parameter_name}</td>
-                              <td style={{ padding: '7px 10px', color: 'var(--text-primary)', fontWeight: 700 }}>{val.value}</td>
-                              <td style={{ padding: '7px 10px', color: 'var(--text-muted)' }}>{val.unit || '—'}</td>
-                              <td style={{ padding: '7px 10px', color: 'var(--text-muted)' }}>{val.reference_range || '—'}</td>
-                              <td style={{ padding: '7px 10px' }}>
-                                {val.is_abnormal
-                                  ? <span style={{ background: 'color-mix(in srgb, var(--color-danger) 18%, transparent)', color: 'var(--color-danger)', fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}>{t.exam.abnormal}</span>
-                                  : <span style={{ background: 'color-mix(in srgb, var(--color-success) 18%, transparent)', color: 'var(--color-success)', fontSize: '0.75rem', fontWeight: 800, padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}>{t.exam.normal}</span>
-                                }
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button onClick={handleCancel} className="btn btn-ghost btn-sm">
+                      <X size={14} /> {t.exam.cancelBtn}
+                    </button>
+                    <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
+                      <Check size={14} /> {saving ? t.common.saving : t.exam.saveBtn}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {exam.pdf_url && (
+                    <button onClick={() => window.open(exam.pdf_url, '_blank')} className="btn btn-outline btn-sm" style={{ marginBottom: 12 }}>
+                      {t.exam.viewPdf}
+                    </button>
+                  )}
+
+                  {exam.notes && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div className="k" style={{ font: '800 10.5px/1 var(--f-pet)', letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 6 }}>
+                        {t.exam.notes}
+                      </div>
+                      <p className="t-bodysm muted" style={{ margin: 0, fontStyle: 'italic' }}>{exam.notes}</p>
                     </div>
+                  )}
+
+                  {exam.exam_values?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <p className="t-label muted-3" style={{ margin: '0 0 10px' }}>{t.exam.results}</p>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ background: 'var(--surface-2)' }}>
+                              {[t.exam.param, t.exam.value, t.exam.unit, t.exam.range, t.exam.status].map(h => (
+                                <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 800, color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {exam.exam_values.map(val => (
+                              <tr key={val.id} style={{ background: val.is_abnormal ? 'var(--danger-soft)' : 'transparent', borderTop: '1px solid var(--border)' }}>
+                                <td style={{ padding: '7px 10px', fontWeight: 600 }}>{val.parameter_name}</td>
+                                <td style={{ padding: '7px 10px', fontWeight: 700 }}>{val.value}</td>
+                                <td style={{ padding: '7px 10px', color: 'var(--text-3)' }}>{val.unit || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: 'var(--text-3)' }}>{val.reference_range || '—'}</td>
+                                <td style={{ padding: '7px 10px' }}>
+                                  {val.is_abnormal
+                                    ? <span className="badge badge-danger" style={{ background: 'var(--danger-soft)', color: 'var(--danger-ink)', fontSize: 11 }}>{t.exam.abnormal}</span>
+                                    : <span className="badge" style={{ background: 'var(--success-soft)', color: 'var(--success-ink)', fontSize: 11 }}>{t.exam.normal}</span>
+                                  }
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rec-actions">
+                    <button onClick={() => { setOpen(true); setEditing(true) }} className="btn btn-ghost btn-sm">
+                      <Pencil size={14} /> {t.exam.editBtn}
+                    </button>
+                    <button onClick={handleDelete} disabled={deleting} className="btn btn-danger btn-sm">
+                      {deleting ? t.common.deleting : t.exam.deleteBtn}
+                    </button>
                   </div>
-                )}
+                </>
+              )}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={handleDelete} disabled={deleting} style={{ background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)', color: 'var(--color-danger)', border: '1px solid color-mix(in srgb, var(--color-danger) 25%, transparent)', borderRadius: '8px', padding: '5px 12px', fontSize: '0.8rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', cursor: deleting ? 'not-allowed' : 'pointer' }}>
-                    🗑️ {deleting ? t.common.deleting : t.exam.deleteBtn}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Attachments — always visible when expanded */}
-            <AttachmentsSection
-              attachments={attachments}
-              setAttachments={setAttachments}
-              entityId={exam.id}
-              t={t}
-            />
+              <AttachmentsSection
+                attachments={attachments}
+                setAttachments={setAttachments}
+                entityId={exam.id}
+                t={t}
+              />
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -277,7 +268,9 @@ export default function ExamViewer({ exam, onDelete, onUpdate }) {
 function LabelInput({ label, value, onChange, type = 'text', textarea = false, rows = 2 }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--text-3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+        {label}
+      </label>
       {textarea
         ? <textarea style={{ ...inputStyle, resize: 'vertical' }} rows={rows} value={value} onChange={e => onChange(e.target.value)} />
         : <input style={inputStyle} type={type} value={value} onChange={e => onChange(e.target.value)} />

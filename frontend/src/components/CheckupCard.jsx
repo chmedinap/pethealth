@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Calendar, Pencil, X, Check } from 'lucide-react'
+import { ChevronDown, Stethoscope, Pencil, X, Check, Pill, Calendar, Paperclip } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { deleteCheckup, updateCheckup, uploadCheckupAttachment, deleteAttachment } from '../api'
 
 const inputStyle = {
-  width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border-color)',
-  borderRadius: '8px', padding: '7px 10px', fontSize: '0.85rem', color: 'var(--text-primary)',
-  fontFamily: 'Nunito, sans-serif', outline: 'none', boxSizing: 'border-box',
+  width: '100%', background: 'var(--surface-3)', border: '1.5px solid var(--border-2)',
+  borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: '14px', color: 'var(--text)',
+  fontFamily: 'var(--f-pet)', outline: 'none', boxSizing: 'border-box',
 }
 
 function formatDate(dateStr) {
@@ -47,20 +47,21 @@ function AttachmentsSection({ attachments, setAttachments, entityId, t }) {
     }
   }
 
+  if (attachments.length === 0 && attachments.length >= 3) return null
+
   return (
-    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '4px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          {t.checkup.attachments}
-        </span>
+    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span className="t-label muted-3">{t.checkup.attachments}</span>
         {attachments.length < 3 && (
           <>
             <input ref={fileInputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={handleUpload} />
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '4px 10px', cursor: uploading ? 'not-allowed' : 'pointer', fontSize: '0.78rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: 'var(--text-secondary)' }}
+              className="btn btn-ghost btn-sm"
             >
+              <Paperclip size={14} />
               {uploading ? t.checkup.uploading : `+ ${t.checkup.attachBtn}`}
             </button>
           </>
@@ -68,41 +69,39 @@ function AttachmentsSection({ attachments, setAttachments, entityId, t }) {
       </div>
 
       {attachments.length === 0 ? (
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{t.checkup.noAttachments}</p>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', fontStyle: 'italic', margin: 0 }}>{t.checkup.noAttachments}</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {attachments.map(att => (
-            <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-tertiary)', borderRadius: '8px', padding: '7px 10px' }}>
-              {att.file_type === 'image' ? (
-                <img
-                  src={att.file_url}
-                  alt={att.file_name}
-                  style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
-                  onClick={() => window.open(att.file_url, '_blank')}
-                />
-              ) : (
-                <span style={{ fontSize: '1.4rem', flexShrink: 0, cursor: 'pointer' }} onClick={() => window.open(att.file_url, '_blank')}>📄</span>
-              )}
-              <span
-                onClick={() => window.open(att.file_url, '_blank')}
-                style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-              >
-                {att.file_name}
-              </span>
-              <button onClick={() => handleDelete(att.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', flexShrink: 0, padding: '2px' }}>
-                <X size={14} />
-              </button>
-            </div>
-          ))}
+        <div className="attach">
+          {attachments.map(att => {
+            const ext = att.file_name?.split('.').pop()?.toUpperCase() || 'FILE'
+            return (
+              <div key={att.id} className="attach-item" style={{ cursor: 'pointer' }} onClick={() => window.open(att.file_url, '_blank')}>
+                {att.file_type === 'image' ? (
+                  <img src={att.file_url} alt={att.file_name} style={{ width: 30, height: 36, borderRadius: 6, objectFit: 'cover' }} />
+                ) : (
+                  <div className="fic">{ext}</div>
+                )}
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
+                  {att.file_name}
+                </span>
+                <button
+                  onClick={e => { e.stopPropagation(); handleDelete(att.id) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, display: 'flex' }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
 
-export default function CheckupCard({ checkup, onDelete, onUpdate }) {
+export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) {
   const { t } = useLanguage()
-  const [expanded, setExpanded] = useState(false)
+  const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -157,138 +156,166 @@ export default function CheckupCard({ checkup, onDelete, onUpdate }) {
 
   function setField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
 
+  const toggle = () => { setOpen(o => !o); if (editing) setEditing(false) }
+
   return (
-    <div style={{ background: 'var(--bg-secondary)', borderRadius: '16px', border: '1px solid var(--border-color)', borderLeft: '4px solid var(--color-primary)', boxShadow: 'var(--shadow-card)', overflow: 'hidden' }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', flexWrap: 'wrap' }}>
-        <span onClick={() => { setExpanded(e => !e); setEditing(false) }} style={{ color: 'var(--text-muted)', flexShrink: 0, cursor: 'pointer' }}>
-          {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-        </span>
-
-        <div onClick={() => { setExpanded(e => !e); setEditing(false) }} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{formatDate(checkup.checkup_date)}</span>
-            <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Dr. {checkup.vet_name}</span>
-            {checkup.clinic_name && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>· {checkup.clinic_name}</span>}
-          </div>
-        </div>
-
-        <span style={{ background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', maxWidth: '140px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>
-          {checkup.reason}
-        </span>
-
-        {/* Edit toggle */}
-        <button
-          onClick={() => { setExpanded(true); setEditing(e => !e) }}
-          title={t.checkup.editBtn}
-          style={{ background: editing ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '5px 8px', cursor: 'pointer', color: editing ? 'var(--color-primary)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
-        >
-          <Pencil size={13} />
-        </button>
+    <div className="tl-item" style={{ animationDelay: `${index * 80}ms` }}>
+      <div className="tl-dot">
+        <Stethoscope size={10} style={{ color: 'var(--primary-ink)' }} />
       </div>
 
-      {/* Body */}
-      {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border-color)' }}>
-          <div style={{ paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div className="rec" data-open={open ? '1' : '0'}>
+        {/* Header */}
+        <div className="rec-head" onClick={toggle}>
+          <div className="rec-ic check">
+            <Stethoscope size={20} />
+          </div>
+          <div className="rec-ttl">
+            <div className="r1">
+              <h4>{checkup.reason || t.checkup.noReason}</h4>
+              {checkup.medications?.length > 0 && (
+                <span className="badge badge-neutral">
+                  <Pill size={12} /> {checkup.medications.length} {checkup.medications.length === 1 ? 'med' : 'meds'}
+                </span>
+              )}
+              {attachments.length > 0 && (
+                <span className="badge badge-neutral">
+                  <Paperclip size={12} /> {attachments.length}
+                </span>
+              )}
+            </div>
+            <div className="r2">
+              <span><Calendar size={13} /> {formatDate(checkup.checkup_date)}</span>
+              {checkup.vet_name && <><span>·</span><span>Dr. {checkup.vet_name}</span></>}
+              {checkup.clinic_name && <><span>·</span><span>{checkup.clinic_name}</span></>}
+            </div>
+          </div>
+          <ChevronDown size={20} className="rec-chev" />
+        </div>
 
-            {editing ? (
-              /* ── Edit form ── */
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <LabelInput label={t.addCheckup?.vet || 'Veterinario'} value={editForm.vet_name} onChange={v => setField('vet_name', v)} />
-                  <LabelInput label={t.addCheckup?.clinic || 'Clínica'} value={editForm.clinic_name} onChange={v => setField('clinic_name', v)} />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  <LabelInput label={t.addCheckup?.date || 'Fecha'} type="date" value={editForm.checkup_date} onChange={v => setField('checkup_date', v)} />
-                  <LabelInput label={t.addCheckup?.nextVisit || 'Próxima visita'} type="date" value={editForm.next_visit_date} onChange={v => setField('next_visit_date', v)} />
-                </div>
-                <LabelInput label={t.checkup.reason} textarea value={editForm.reason} onChange={v => setField('reason', v)} />
-                <LabelInput label={t.checkup.diagnosis} textarea value={editForm.diagnosis} onChange={v => setField('diagnosis', v)} />
-                <LabelInput label={t.checkup.observations} textarea rows={3} value={editForm.observations} onChange={v => setField('observations', v)} />
-
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                  <button onClick={handleCancel} style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '6px 14px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <X size={13} /> {t.checkup.cancelBtn}
-                  </button>
-                  <button onClick={handleSave} disabled={saving} style={{ background: 'var(--color-primary)', border: 'none', borderRadius: '8px', padding: '6px 14px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.82rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: '#fff', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Check size={13} /> {saving ? t.common.saving : t.checkup.saveBtn}
-                  </button>
-                </div>
-              </>
-            ) : (
-              /* ── Read-only view ── */
-              <>
-                <Field label={t.checkup.reason} value={checkup.reason} />
-                {checkup.diagnosis && <Field label={t.checkup.diagnosis} value={checkup.diagnosis} />}
-                {checkup.observations && <Field label={t.checkup.observations} value={checkup.observations} />}
-
-                {checkup.next_visit_date && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Calendar size={14} color="var(--color-accent)" />
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                      <strong>{t.checkup.nextVisit}</strong> {formatDate(checkup.next_visit_date)}
-                    </span>
+        {/* Body */}
+        <div className="rec-body">
+          <div>
+            <div className="rec-inner rec-inner-pad">
+              {editing ? (
+                /* Edit form */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <LabelInput label={t.addCheckup?.vet || 'Veterinario'} value={editForm.vet_name} onChange={v => setField('vet_name', v)} />
+                    <LabelInput label={t.addCheckup?.clinic || 'Clínica'} value={editForm.clinic_name} onChange={v => setField('clinic_name', v)} />
                   </div>
-                )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <LabelInput label={t.addCheckup?.date || 'Fecha'} type="date" value={editForm.checkup_date} onChange={v => setField('checkup_date', v)} />
+                    <LabelInput label={t.addCheckup?.nextVisit || 'Próxima visita'} type="date" value={editForm.next_visit_date} onChange={v => setField('next_visit_date', v)} />
+                  </div>
+                  <LabelInput label={t.checkup.reason} textarea value={editForm.reason} onChange={v => setField('reason', v)} />
+                  <LabelInput label={t.checkup.diagnosis} textarea value={editForm.diagnosis} onChange={v => setField('diagnosis', v)} />
+                  <LabelInput label={t.checkup.observations} textarea rows={3} value={editForm.observations} onChange={v => setField('observations', v)} />
 
-                {checkup.medications?.length > 0 && (
-                  <div>
-                    <p style={{ margin: '4px 0 8px', fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{t.checkup.meds}</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button onClick={handleCancel} className="btn btn-ghost btn-sm">
+                      <X size={14} /> {t.checkup.cancelBtn}
+                    </button>
+                    <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
+                      <Check size={14} /> {saving ? t.common.saving : t.checkup.saveBtn}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Read-only */
+                <>
+                  <div className="kv">
+                    {checkup.diagnosis && (
+                      <div>
+                        <div className="k">{t.checkup.diagnosis}</div>
+                        <div className="v">{checkup.diagnosis}</div>
+                      </div>
+                    )}
+                    {checkup.clinic_name && (
+                      <div>
+                        <div className="k">{t.addCheckup?.clinic || 'Clínica'}</div>
+                        <div className="v">{checkup.clinic_name}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {checkup.observations && (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="k" style={{ font: '800 10.5px/1 var(--f-pet)', letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-3)', marginBottom: 6 }}>
+                        {t.checkup.observations}
+                      </div>
+                      <p className="t-bodysm muted" style={{ margin: 0 }}>{checkup.observations}</p>
+                    </div>
+                  )}
+
+                  {checkup.next_visit_date && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                      <Calendar size={14} style={{ color: 'var(--accent-ink)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 600 }}>
+                        <strong>{t.checkup.nextVisit}</strong> {formatDate(checkup.next_visit_date)}
+                      </span>
+                    </div>
+                  )}
+
+                  {checkup.medications?.length > 0 && (
+                    <div className="med-list">
                       {checkup.medications.map(med => (
-                        <div key={med.id} style={{ background: 'var(--bg-tertiary)', borderRadius: '12px', padding: '8px 12px', fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
-                          <strong style={{ color: 'var(--text-primary)' }}>{med.name}</strong>
-                          {med.concentration && ` (${med.concentration})`}
-                          {' — '}{med.frequency}
-                          {med.duration_days && ` — ${med.duration_days} ${t.common.days}`}
-                          {med.notes && <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}> · {med.notes}</span>}
+                        <div className="med" key={med.id}>
+                          <div className="mic"><Pill size={16} /></div>
+                          <div style={{ flex: 1 }}>
+                            <div className="mname">{med.name}{med.concentration && ` (${med.concentration})`}</div>
+                            <div className="mdose">
+                              {med.frequency}
+                              {med.duration_days && ` · ${med.duration_days} ${t.common.days}`}
+                              {med.notes && ` · ${med.notes}`}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  <div className="rec-actions">
+                    <button
+                      onClick={() => setEditing(true)}
+                      className="btn btn-ghost btn-sm"
+                    >
+                      <Pencil size={14} /> {t.checkup.editBtn}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="btn btn-danger btn-sm"
+                    >
+                      {deleting ? t.common.deleting : t.checkup.deleteBtn}
+                    </button>
                   </div>
-                )}
+                </>
+              )}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={handleDelete} disabled={deleting} style={{ background: 'color-mix(in srgb, var(--color-danger) 12%, transparent)', color: 'var(--color-danger)', border: '1px solid color-mix(in srgb, var(--color-danger) 25%, transparent)', borderRadius: '8px', padding: '5px 12px', fontSize: '0.8rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', cursor: deleting ? 'not-allowed' : 'pointer' }}>
-                    🗑️ {deleting ? t.common.deleting : t.checkup.deleteBtn}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Attachments — always visible when expanded */}
-            <AttachmentsSection
-              attachments={attachments}
-              setAttachments={setAttachments}
-              entityId={checkup.id}
-              t={t}
-            />
+              <AttachmentsSection
+                attachments={attachments}
+                setAttachments={setAttachments}
+                entityId={checkup.id}
+                t={t}
+              />
+            </div>
           </div>
         </div>
-      )}
-    </div>
-  )
-}
-
-function Field({ label, value }) {
-  return (
-    <div>
-      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-      <p style={{ margin: '2px 0 0', fontSize: '0.88rem', color: 'var(--text-primary)' }}>{value}</p>
+      </div>
     </div>
   )
 }
 
 function LabelInput({ label, value, onChange, type = 'text', textarea = false, rows = 2 }) {
-  const style = { ...inputStyle }
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--text-3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+        {label}
+      </label>
       {textarea
-        ? <textarea style={{ ...style, resize: 'vertical' }} rows={rows} value={value} onChange={e => onChange(e.target.value)} />
-        : <input style={style} type={type} value={value} onChange={e => onChange(e.target.value)} />
+        ? <textarea style={{ ...inputStyle, resize: 'vertical' }} rows={rows} value={value} onChange={e => onChange(e.target.value)} />
+        : <input style={inputStyle} type={type} value={value} onChange={e => onChange(e.target.value)} />
       }
     </div>
   )

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
-import { Stethoscope } from 'lucide-react'
+import { ArrowLeft, Pencil, Share2, Cake, Scale, Syringe, Stethoscope, FlaskConical, Plus } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import CheckupCard from '../components/CheckupCard'
 import ExamViewer from '../components/ExamViewer'
@@ -26,24 +26,14 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function SectionHeader({ title, actionLabel, onAction }) {
+function Vital({ icon: Icon, label, value, unit }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-      <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{title}</h2>
-      <button onClick={onAction} style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '10px', padding: '7px 14px', fontSize: '0.85rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', cursor: 'pointer' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary-hover)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-primary)' }}>
-        {actionLabel}
-      </button>
-    </div>
-  )
-}
-
-function EmptySection({ emoji, text }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--text-muted)', fontSize: '0.9rem', fontStyle: 'italic' }}>
-      <div style={{ fontSize: '2rem', marginBottom: '8px' }}>{emoji}</div>
-      {text}
+    <div className="vital">
+      <div className="vi"><Icon size={16} /></div>
+      <div>
+        <div className="k">{label}</div>
+        <div className="v">{value}{unit && <small> {unit}</small>}</div>
+      </div>
     </div>
   )
 }
@@ -53,6 +43,7 @@ export default function PetProfile() {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
   const { t } = useLanguage()
+  const [tab, setTab] = useState('checkups')
 
   const [pet, setPet] = useState(null)
   const [checkups, setCheckups] = useState([])
@@ -109,142 +100,184 @@ export default function PetProfile() {
   if (loading) return (
     <>
       <Navbar />
-      <div style={{ paddingTop: '120px', paddingLeft: '24px', paddingRight: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        {t.common.loading}
-      </div>
+      <main style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 60, maxWidth: 1200, margin: '0 auto', boxSizing: 'border-box' }}>
+        <div style={{ paddingTop: 32, textAlign: 'center', color: 'var(--text-3)' }}>{t.common.loading}</div>
+      </main>
     </>
   )
 
   if (notFound) return <Navigate to="/" replace />
 
   const speciesEmoji = pet.species === 'cat' ? '🐱' : '🐶'
-  const speciesLabel = pet.species === 'cat' ? t.common.cat : t.common.dog
-  const lastCheckup = checkups[0]?.checkup_date
+  const speciesCls = pet.species === 'cat' ? 'badge-cat' : 'badge-dog'
+  const genderCls = pet.gender === 'male' ? 'badge-gender-m' : 'badge-gender-f'
+  const genderLabel = pet.gender === 'male' ? t.common.male : pet.gender === 'female' ? t.common.female : null
 
   return (
     <>
       <Navbar />
-      <main style={{ paddingTop: '80px', paddingLeft: '24px', paddingRight: '24px', paddingBottom: '60px', maxWidth: '900px', margin: '0 auto', boxSizing: 'border-box' }}>
+      <main style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 60, maxWidth: 1200, margin: '0 auto', boxSizing: 'border-box' }}>
+        <div className="screen">
+          <button className="back-btn" onClick={() => navigate('/')}>
+            <ArrowLeft size={18} strokeWidth={2.4} />
+            {t.dashboard?.title || 'Mis mascotas'}
+          </button>
 
-        {/* Header card */}
-        <div style={{ background: 'var(--bg-secondary)', borderRadius: '24px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-card)', padding: '24px', marginTop: '24px', marginBottom: '28px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+          <div className="profile-grid">
+            {/* ── HERO ── */}
+            <aside className="pet-hero">
+              <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
+                <div style={{ position: 'relative' }}>
+                  {pet.photo_url ? (
+                    <div style={{ height: 230 }}>
+                      <img
+                        src={pet.photo_url}
+                        alt={pet.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="photo"
+                      style={{ height: 230, borderRadius: 'var(--r-lg) var(--r-lg) 0 0', '--tint': pet.species === 'cat' ? 'var(--accent)' : 'var(--secondary)' }}
+                    >
+                      <span className="ph-emoji" style={{ fontSize: '3.5em' }}>{speciesEmoji}</span>
+                    </div>
+                  )}
+                </div>
 
-          {/* Photo */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '200px', height: '200px', borderRadius: '20px', overflow: 'hidden', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              {pet.photo_url
-                ? <img src={pet.photo_url} alt={pet.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                : <span style={{ fontSize: '5rem' }}>{speciesEmoji}</span>
-              }
-            </div>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
-              style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '5px 14px', fontSize: '0.8rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', color: 'var(--text-secondary)', cursor: uploadingPhoto ? 'not-allowed' : 'pointer' }}>
-              {uploadingPhoto ? t.profile.uploading : t.profile.changePhoto}
-            </button>
-          </div>
+                <div className="pet-hero-body">
+                  <h1 className="t-h1">{pet.name} <span style={{ fontSize: 22 }}>{speciesEmoji}</span></h1>
 
-          {/* Info */}
-          <div style={{ flex: 1, minWidth: '240px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
-              <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800, color: 'var(--color-primary)' }}>{pet.name}</h1>
-              <span style={{ background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', fontSize: '0.78rem', fontWeight: 800, padding: '3px 10px', borderRadius: '20px' }}>
-                {speciesEmoji} {speciesLabel}
-              </span>
-            </div>
+                  <div className="pet-badges">
+                    <span className={`badge ${speciesCls}`}>
+                      <span className="emoji">{speciesEmoji}</span>
+                      {pet.breed || (pet.species === 'cat' ? t.common.cat : t.common.dog)}
+                    </span>
+                    {genderLabel && (
+                      <span className={`badge ${genderCls}`}>
+                        {pet.gender === 'male' ? '♂' : '♀'} {genderLabel}
+                      </span>
+                    )}
+                  </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', margin: '16px 0' }}>
-              <DataItem icon="🎂" label={t.profile.age} value={calcAge(pet.birth_date, t.common)} />
-              <DataItem icon="🐾" label={t.profile.breed} value={pet.breed || t.profile.unknownBreed} />
-              <DataItem icon="⚖️" label={t.profile.weight} value={pet.weight_kg ? `${pet.weight_kg} ${t.common.kg}` : t.profile.noWeight} />
-              <DataItem
-                icon={pet.gender === 'male' ? '♂️' : pet.gender === 'female' ? '♀️' : '❓'}
-                label={t.profile.gender}
-                value={pet.gender === 'male' ? t.common.male : pet.gender === 'female' ? t.common.female : t.common.noGender}
-              />
-              <DataItem icon="📅" label={t.profile.registered} value={formatDate(pet.created_at)} />
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <Stethoscope size={14} color="var(--text-muted)" style={{ marginTop: '3px', flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t.profile.lastCheckup}</div>
-                  <div style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {lastCheckup ? formatDate(lastCheckup) : t.profile.noVisits}
+                  <div className="vitals">
+                    <Vital icon={Cake} label={t.profile.age} value={calcAge(pet.birth_date, t.common)} />
+                    <Vital icon={Scale} label={t.profile.weight} value={pet.weight_kg || '—'} unit={pet.weight_kg ? t.common.kg : null} />
+                    <Vital icon={Stethoscope} label={t.profile.lastCheckup} value={checkups[0] ? formatDate(checkups[0].checkup_date) : '—'} />
+                    <Vital icon={Syringe} label={t.profile.registered || 'Registrado'} value={formatDate(pet.created_at) || '—'} />
+                  </div>
+
+                  {pet.notes && (
+                    <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-md)', padding: '13px 15px', marginBottom: 16 }}>
+                      <div className="t-label muted-3" style={{ marginBottom: 6 }}>📝 {t.profile.notes || 'Notas'}</div>
+                      <p className="t-bodysm muted" style={{ margin: 0 }}>{pet.notes}</p>
+                    </div>
+                  )}
+
+                  <div style={{ marginBottom: 12 }}>
+                    <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingPhoto}
+                      style={{ width: '100%' }}
+                    >
+                      {uploadingPhoto ? t.profile.uploading : t.profile.changePhoto}
+                    </button>
+                  </div>
+
+                  <div className="hero-actions">
+                    <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => navigate(`/pets/${id}/edit`)}>
+                      <Pencil size={16} /> {t.profile.editBtn}
+                    </button>
+                    <button className="icon-btn" onClick={() => {}} title="Compartir"><Share2 size={18} /></button>
+                    <button className="btn btn-danger btn-sm" onClick={handleDelete}>{t.profile.deleteBtn}</button>
                   </div>
                 </div>
               </div>
-            </div>
+            </aside>
 
-            {pet.notes && (
-              <div style={{ background: 'var(--bg-tertiary)', borderLeft: '4px solid var(--color-primary)', borderRadius: '0 10px 10px 0', padding: '10px 14px', fontSize: '0.88rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '16px' }}>
-                {pet.notes}
+            {/* ── RECORDS ── */}
+            <section>
+              <div className="records-head">
+                <div className="tabs">
+                  <button className="tab" data-on={tab === 'checkups' ? '1' : '0'} onClick={() => setTab('checkups')}>
+                    <Stethoscope size={16} />
+                    {t.profile.checkupsTitle || 'Consultas'}
+                    <span className="pill-n">{checkups.length}</span>
+                  </button>
+                  <button className="tab" data-on={tab === 'exams' ? '1' : '0'} onClick={() => setTab('exams')}>
+                    <FlaskConical size={16} />
+                    {t.profile.examsTitle || 'Exámenes'}
+                    <span className="pill-n">{exams.length}</span>
+                  </button>
+                </div>
+                <div style={{ marginLeft: 'auto' }} />
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => navigate(`/pets/${id}/${tab === 'checkups' ? 'checkups' : 'exams'}/new`)}
+                >
+                  <Plus size={16} strokeWidth={2.6} />
+                  {tab === 'checkups' ? (t.profile.newCheckup || 'Nueva consulta') : (t.profile.newExam || 'Nuevo examen')}
+                </button>
               </div>
-            )}
 
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button onClick={() => navigate(`/pets/${id}/edit`)} style={actionBtn('var(--color-primary)')}
-                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary-hover)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-primary)' }}>
-                {t.profile.editBtn}
-              </button>
-              <button onClick={handleDelete} style={actionBtn('var(--color-danger)')}>
-                {t.profile.deleteBtn}
-              </button>
-            </div>
+              {tab === 'checkups' ? (
+                checkups.length > 0 ? (
+                  <div className="timeline">
+                    {checkups.map((c, i) => (
+                      <CheckupCard
+                        key={c.id}
+                        checkup={c}
+                        index={i}
+                        onDelete={did => setCheckups(prev => prev.filter(x => x.id !== did))}
+                        onUpdate={updated => setCheckups(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="section-empty">
+                    <span className="se-emoji">🩺</span>
+                    <h3 className="t-h3" style={{ margin: '0 0 6px' }}>{t.profile.noCheckups || 'Sin consultas aún'}</h3>
+                    <p className="t-bodysm" style={{ margin: '0 0 16px' }}>
+                      Registra las visitas al veterinario de {pet.name} para construir su historial.
+                    </p>
+                    <button className="btn btn-primary btn-sm" onClick={() => navigate(`/pets/${id}/checkups/new`)}>
+                      <Plus size={16} /> {t.profile.newCheckup || 'Registrar primera consulta'}
+                    </button>
+                  </div>
+                )
+              ) : (
+                exams.length > 0 ? (
+                  <div className="timeline">
+                    {exams.map((e, i) => (
+                      <ExamViewer
+                        key={e.id}
+                        exam={e}
+                        index={i}
+                        onDelete={did => setExams(prev => prev.filter(x => x.id !== did))}
+                        onUpdate={updated => setExams(prev => prev.map(x => x.id === updated.id ? updated : x))}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="section-empty">
+                    <span className="se-emoji">🔬</span>
+                    <h3 className="t-h3" style={{ margin: '0 0 6px' }}>{t.profile.noExams || 'Sin exámenes aún'}</h3>
+                    <p className="t-bodysm" style={{ margin: '0 0 16px' }}>
+                      Sube resultados de laboratorio e imágenes para tenerlo todo en un lugar.
+                    </p>
+                    <button className="btn btn-primary btn-sm" onClick={() => navigate(`/pets/${id}/exams/new`)}>
+                      <Plus size={16} /> {t.profile.newExam || 'Agregar primer examen'}
+                    </button>
+                  </div>
+                )
+              )}
+            </section>
           </div>
         </div>
-
-        {/* Checkups */}
-        <section style={{ marginBottom: '32px' }}>
-          <SectionHeader title={t.profile.checkupsTitle} actionLabel={t.profile.newCheckup} onAction={() => navigate(`/pets/${id}/checkups/new`)} />
-          {checkups.length === 0
-            ? <EmptySection emoji="🩺" text={t.profile.noCheckups} />
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {checkups.map(c => (
-                <CheckupCard
-                  key={c.id}
-                  checkup={c}
-                  onDelete={did => setCheckups(prev => prev.filter(x => x.id !== did))}
-                  onUpdate={updated => setCheckups(prev => prev.map(x => x.id === updated.id ? updated : x))}
-                />
-              ))}
-              </div>
-          }
-        </section>
-
-        {/* Exams */}
-        <section>
-          <SectionHeader title={t.profile.examsTitle} actionLabel={t.profile.newExam} onAction={() => navigate(`/pets/${id}/exams/new`)} />
-          {exams.length === 0
-            ? <EmptySection emoji="🧪" text={t.profile.noExams} />
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {exams.map(e => (
-                <ExamViewer
-                  key={e.id}
-                  exam={e}
-                  onDelete={did => setExams(prev => prev.filter(x => x.id !== did))}
-                  onUpdate={updated => setExams(prev => prev.map(x => x.id === updated.id ? updated : x))}
-                />
-              ))}
-              </div>
-          }
-        </section>
       </main>
     </>
   )
-}
-
-function DataItem({ icon, label, value }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-      <span style={{ fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>{icon}</span>
-      <div>
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
-        <div style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontWeight: 600 }}>{value}</div>
-      </div>
-    </div>
-  )
-}
-
-function actionBtn(bg) {
-  return { background: bg, color: '#fff', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', cursor: 'pointer' }
 }

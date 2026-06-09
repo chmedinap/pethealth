@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Stethoscope } from 'lucide-react'
+import { Stethoscope, Scale, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 
 function calcAge(birthDate, tc) {
@@ -16,79 +15,103 @@ function calcAge(birthDate, tc) {
   return `${years} ${years === 1 ? tc.year : tc.years} ${tc.and} ${months} ${months === 1 ? tc.month : tc.months}`
 }
 
-function formatDate(dateStr) {
+function formatDateRelative(dateStr) {
   if (!dateStr) return null
   const d = new Date(dateStr)
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const now = new Date()
+  const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Hoy'
+  if (diffDays === 1) return 'Ayer'
+  if (diffDays < 7) return `Hace ${diffDays} días`
+  if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} sem.`
+  if (diffDays < 365) return `Hace ${Math.floor(diffDays / 30)} mes.`
+  return `Hace ${Math.floor(diffDays / 365)} año(s)`
 }
 
-export default function PetCard({ pet }) {
+export default function PetCard({ pet, index = 0 }) {
   const navigate = useNavigate()
   const { t } = useLanguage()
-  const [hovered, setHovered] = useState(false)
 
-  const speciesLabel = pet.species === 'cat' ? t.common.cat : t.common.dog
   const speciesEmoji = pet.species === 'cat' ? '🐱' : '🐶'
-  const genderIcon = pet.gender === 'male' ? '♂️' : pet.gender === 'female' ? '♀️' : null
-  const genderLabel = pet.gender === 'male' ? t.common.male : t.common.female
+  const speciesCls = pet.species === 'cat' ? 'badge-cat' : 'badge-dog'
+  const age = calcAge(pet.birth_date, t.common)
+  const lastVisit = formatDateRelative(pet.last_checkup)
 
   return (
-    <div
+    <article
+      className="petcard pc-portrait"
+      style={{ animationDelay: `${index * 70}ms` }}
       onClick={() => navigate(`/pets/${pet.id}`)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ background: 'var(--bg-secondary)', borderRadius: '20px', border: '1px solid var(--border-color)', boxShadow: hovered ? '0 8px 28px rgba(0,0,0,0.14)' : 'var(--shadow-card)', overflow: 'hidden', cursor: 'pointer', transform: hovered ? 'translateY(-4px)' : 'translateY(0)', transition: 'transform 0.25s ease, box-shadow 0.25s ease' }}
     >
       {/* Photo */}
-      <div style={{ height: '180px', background: 'var(--bg-tertiary)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'relative' }}>
         {pet.photo_url ? (
-          <img src={pet.photo_url} alt={pet.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <div style={{ height: 170, overflow: 'hidden', borderRadius: 0, position: 'relative' }}>
+            <img
+              src={pet.photo_url}
+              alt={pet.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </div>
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 12%, transparent), color-mix(in srgb, var(--color-primary) 6%, transparent))' }}>
-            <span style={{ fontSize: '4rem' }}>{speciesEmoji}</span>
+          <div
+            className="photo"
+            style={{ height: 170, borderRadius: 0, '--tint': pet.species === 'cat' ? 'var(--accent)' : 'var(--secondary)' }}
+          >
+            <span className="ph-emoji">{speciesEmoji}</span>
           </div>
         )}
-        <span style={{ position: 'absolute', top: '8px', right: '8px', background: 'color-mix(in srgb, var(--color-primary) 82%, transparent)', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', backdropFilter: 'blur(4px)' }}>
-          {speciesLabel}
-        </span>
+
+        {/* Species badge top-left */}
+        <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}>
+          <span className={`badge ${speciesCls}`}>
+            <span className="emoji">{speciesEmoji}</span>
+            {pet.species === 'cat' ? t.common.cat : t.common.dog}
+          </span>
+        </div>
       </div>
 
-      {/* Info */}
-      <div style={{ padding: '16px' }}>
-        <p style={{ margin: '0 0 2px', fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {pet.name}
-        </p>
-        <p style={{ margin: '0 0 10px', fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: pet.breed ? 'normal' : 'italic' }}>
-          {pet.breed || t.petCard.unknownBreed}
-        </p>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
-          <Chip>🎂 {calcAge(pet.birth_date, t.common)}</Chip>
-          {pet.weight_kg != null && <Chip>⚖️ {pet.weight_kg} {t.common.kg}</Chip>}
-          {genderIcon && <Chip>{genderIcon} {genderLabel}</Chip>}
+      {/* Body */}
+      <div className="pc-body">
+        <div className="pc-row" style={{ justifyContent: 'space-between' }}>
+          <h3 className="pc-name t-h3">{pet.name}</h3>
+          <span className="badge badge-neutral">{age}</span>
         </div>
 
-        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Stethoscope size={13} color="var(--text-muted)" strokeWidth={2.5} />
-          {pet.last_checkup ? (
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              {t.petCard.lastCheckup} {formatDate(pet.last_checkup)}
-            </span>
-          ) : (
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              {t.petCard.noVisits}
-            </span>
+        <div className="pc-meta">
+          {pet.breed || t.petCard.unknownBreed}
+          {pet.weight_kg != null && (
+            <span style={{ marginLeft: 6, color: 'var(--text-3)' }}>· {pet.weight_kg} {t.common.kg}</span>
           )}
         </div>
-      </div>
-    </div>
-  )
-}
 
-function Chip({ children }) {
-  return (
-    <span style={{ background: 'var(--bg-tertiary)', borderRadius: '20px', padding: '2px 10px', fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-      {children}
-    </span>
+        <div className="pc-stats">
+          <div className="pc-stat">
+            <div className="k">{t.common.weight || 'Peso'}</div>
+            <div className="v">
+              <Scale size={14} style={{ color: 'var(--text-3)' }} />
+              {pet.weight_kg != null ? (
+                <>{pet.weight_kg}<span style={{ fontSize: 12, color: 'var(--text-3)' }}> {t.common.kg}</span></>
+              ) : '—'}
+            </div>
+          </div>
+          <div className="pc-stat">
+            <div className="k">{t.profile?.lastCheckup || 'Última visita'}</div>
+            <div className="v" style={{ fontSize: 13 }}>
+              <Stethoscope size={13} style={{ color: 'var(--text-3)' }} />
+              {lastVisit || '—'}
+            </div>
+          </div>
+        </div>
+
+        <div className="pc-foot">
+          <span className="pc-next">
+            <Stethoscope size={14} />
+            {pet.last_checkup ? lastVisit : <em style={{ fontStyle: 'italic' }}>{t.petCard.noVisits}</em>}
+          </span>
+          <ArrowRight size={18} style={{ color: 'var(--text-3)' }} />
+        </div>
+      </div>
+    </article>
   )
 }

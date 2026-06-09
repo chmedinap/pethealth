@@ -1,43 +1,45 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import PetCard from '../components/PetCard'
 import { useLanguage } from '../context/LanguageContext'
+import { useAuth } from '../context/AuthContext'
 import { getPets } from '../api'
 
 function SkeletonCard() {
   return (
-    <div style={{ background: 'var(--bg-secondary)', borderRadius: '20px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: 'var(--shadow-card)' }}>
-      <div style={{ height: '180px', background: 'var(--bg-tertiary)' }}>
-        <div style={pulse({ width: '100%', height: '100%' })} />
-      </div>
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <div style={pulse({ height: '18px', width: '60%', borderRadius: '8px' })} />
-        <div style={pulse({ height: '13px', width: '40%', borderRadius: '8px' })} />
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <div style={pulse({ height: '22px', width: '70px', borderRadius: '20px' })} />
-          <div style={pulse({ height: '22px', width: '55px', borderRadius: '20px' })} />
+    <div className="petcard pc-portrait" style={{ pointerEvents: 'none' }}>
+      <div style={{ height: 170, background: 'var(--surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+      <div className="pc-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ height: 18, width: '60%', borderRadius: 8, background: 'var(--surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <div style={{ height: 13, width: '40%', borderRadius: 8, background: 'var(--surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ height: 52, flex: 1, borderRadius: 12, background: 'var(--surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div style={{ height: 52, flex: 1, borderRadius: 12, background: 'var(--surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
         </div>
-        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-          <div style={pulse({ height: '13px', width: '55%', borderRadius: '8px' })} />
-        </div>
+        <div style={{ height: 13, width: '55%', borderRadius: 8, background: 'var(--surface-2)', animation: 'pulse 1.5s ease-in-out infinite' }} />
       </div>
     </div>
   )
 }
 
-function pulse(extra) {
-  return { background: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', ...extra }
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buenos días'
+  if (h < 18) return 'Buenas tardes'
+  return 'Buenas noches'
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const { t } = useLanguage()
+  const { user } = useAuth()
   const [pets, setPets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
 
   useEffect(() => {
     getPets()
@@ -46,88 +48,123 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const filtered = pets.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+  const counts = {
+    all: pets.length,
+    dog: pets.filter(p => p.species === 'dog').length,
+    cat: pets.filter(p => p.species === 'cat').length,
+  }
+
+  const filtered = pets.filter(p => {
+    const okFilter = filter === 'all' || p.species === filter
+    const okSearch = !search || (p.name + (p.breed || '')).toLowerCase().includes(search.toLowerCase())
+    return okFilter && okSearch
+  })
+
+  const chips = [
+    { k: 'all', label: t.dashboard?.filterAll || 'Todos', emoji: '🐾' },
+    { k: 'dog', label: t.common.dog || 'Perros', emoji: '🐶' },
+    { k: 'cat', label: t.common.cat || 'Gatos', emoji: '🐱' },
+  ]
 
   return (
     <>
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }`}</style>
       <Navbar />
-      <main style={{ paddingTop: '80px', paddingLeft: '24px', paddingRight: '24px', paddingBottom: '100px', maxWidth: '1200px', margin: '0 auto', boxSizing: 'border-box' }}>
+      <main style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 100, maxWidth: 1200, margin: '0 auto', boxSizing: 'border-box' }}>
 
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginTop: '28px', marginBottom: '28px' }}>
-          <div>
-            <h1 style={{ margin: '0 0 4px', fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              {t.dashboard.title}
+        {/* Greeting header */}
+        <div className="dash-head">
+          <div className="dash-greet">
+            <h1 className="t-h1">
+              {greeting()}, {user?.username} 🌿
             </h1>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-              {loading ? t.common.loading : `${pets.length} ${pets.length === 1 ? t.dashboard.countOne : t.dashboard.countMany}`}
+            <p className="muted t-body dash-sub">
+              {loading ? t.common.loading : (
+                counts.all === 0
+                  ? (t.dashboard.emptySub || 'Aún no tienes mascotas registradas')
+                  : `${counts.all} ${counts.all === 1 ? (t.dashboard.countOne || 'mascota') : (t.dashboard.countMany || 'mascotas')} bajo tu cuidado`
+              )}
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '8px 14px', minWidth: '220px' }}>
-            <Search size={16} color="var(--text-muted)" strokeWidth={2.5} />
-            <input
-              type="text"
-              placeholder={t.dashboard.search}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', color: 'var(--text-primary)', fontFamily: 'Nunito, sans-serif', fontSize: '0.9rem', width: '100%' }}
-            />
+          <div className="dash-tools">
+            <div className="searchbox">
+              <Search size={18} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={t.dashboard.search || 'Buscar por nombre o raza…'}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', alignItems: 'center', padding: 0 }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+            <button className="btn btn-primary" onClick={() => navigate('/pets/new')}>
+              <Plus size={18} strokeWidth={2.6} />
+              {t.dashboard?.addBtn || 'Agregar mascota'}
+            </button>
           </div>
         </div>
 
+        {/* Filter chips */}
+        {!loading && !error && pets.length > 0 && (
+          <div className="filters">
+            {chips.map(c => (
+              <button key={c.k} className="chip" data-on={filter === c.k ? '1' : '0'} onClick={() => setFilter(c.k)}>
+                <span>{c.emoji}</span>
+                {c.label}
+                <span className="count">{counts[c.k]}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {error && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-danger)', fontWeight: 600 }}>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--danger)', fontWeight: 600 }}>
             ⚠️ {error}
           </div>
         )}
 
         {!error && loading ? (
-          <div style={gridStyle}>
+          <div className="cards cards--portrait">
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : !error && pets.length === 0 ? (
           <EmptyState t={t} onAdd={() => navigate('/pets/new')} />
         ) : !error && filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: '1rem', fontWeight: 600 }}>{t.dashboard.noResults}</p>
+          <div className="empty">
+            <div className="empty-art">🔍</div>
+            <h2 className="t-h2">{t.dashboard.noResults || 'Sin resultados'}</h2>
+            <p className="t-body">{t.dashboard?.noResultsSub || 'Intenta con otro nombre o raza.'}</p>
           </div>
         ) : !error ? (
-          <div style={gridStyle}>
-            {filtered.map(pet => <PetCard key={pet.id} pet={pet} />)}
+          <div className="cards cards--portrait">
+            {filtered.map((pet, i) => <PetCard key={pet.id} pet={pet} index={i} />)}
           </div>
         ) : null}
       </main>
 
-      <FAB onClick={() => navigate('/pets/new')} />
+      <button className="fab" onClick={() => navigate('/pets/new')} title="Agregar mascota" aria-label="Agregar mascota">
+        <Plus size={26} strokeWidth={2.6} />
+      </button>
     </>
   )
 }
 
-const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }
-
 function EmptyState({ t, onAdd }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px', gap: '16px', textAlign: 'center' }}>
-      <span style={{ fontSize: '3.5rem' }}>🐾</span>
-      <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t.dashboard.emptyTitle}</p>
-      <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>{t.dashboard.emptySub}</p>
-      <button onClick={onAdd} style={{ marginTop: '8px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 24px', fontSize: '0.95rem', fontWeight: 700, fontFamily: 'Nunito, sans-serif', cursor: 'pointer' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-primary-hover)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-primary)' }}>
-        {t.dashboard.emptyBtn}
+    <div className="empty">
+      <div className="empty-art">🐾</div>
+      <h2 className="t-h2">{t.dashboard.emptyTitle || 'Aún no tienes mascotas'}</h2>
+      <p className="t-body">{t.dashboard.emptySub || 'Agrega tu primera mascota para comenzar a registrar su salud.'}</p>
+      <button className="btn btn-primary btn-lg" onClick={onAdd}>
+        <Plus size={19} strokeWidth={2.6} />
+        {t.dashboard.emptyBtn || 'Agregar mi primera mascota'}
       </button>
     </div>
-  )
-}
-
-function FAB({ onClick }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} aria-label="Add pet"
-      style={{ position: 'fixed', bottom: '32px', right: '32px', width: '56px', height: '56px', borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(91,138,110,0.45)', transform: hovered ? 'scale(1.08)' : 'scale(1)', transition: 'transform 0.2s ease', zIndex: 50 }}>
-      <Plus size={26} strokeWidth={2.5} />
-    </button>
   )
 }
