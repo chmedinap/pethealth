@@ -19,3 +19,4 @@ services:
       - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-24}
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       - TZ=${TZ:-UTC}
+      - SEED_DEMO=${SEED_DEMO:-true}

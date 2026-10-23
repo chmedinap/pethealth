@@ -55,7 +55,9 @@ docker run -d \
   martitoci/pethealth:latest
 ```
 
-Open `http://localhost:3000` — default credentials: **admin / admin123**
+Open `http://localhost:3000` — default credentials: **admin / admin123** (you'll be asked to change the password).
+
+A fresh install comes with **4 demo pets** — Milo (dog), Luna (cat), Copito (rabbit) and Rocky (puppy) — with checkups, exams, vaccines and weight history dated relative to the first start, so reminders, active treatments and charts all have data. Set `SEED_DEMO=false` to start empty.
 
 ---
 
@@ -115,6 +117,7 @@ services:
       - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-24}
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       - TZ=${TZ:-UTC}
+      - SEED_DEMO=${SEED_DEMO:-true}
 ```
 
 > Variables are read from the `.env` file in the same folder. Compose refuses to start if `JWT_SECRET` is missing.
@@ -133,6 +136,7 @@ services:
 | `LOGIN_RATE_LIMIT` | Failed login/sign-up attempts allowed per IP every 15 min (`0` disables) | No (default: `10`) |
 | `BACKUP_INTERVAL_HOURS` | Hours between automatic database backups (`0` disables) | No (default: `24`) |
 | `BACKUP_KEEP` | Number of backups to keep | No (default: `7`) |
+| `SEED_DEMO` | Load 4 demo pets on first start (`false` to start empty) | No (default: `true`) |
 | `TZ` | Server time zone (e.g. `America/Bogota`) | No (default: `UTC`) |
 | `DATA_DIR` | Where the database, uploads and backups live | No (default: `/app/data` in Docker, `backend/data` locally) |
 

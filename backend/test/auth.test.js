@@ -44,7 +44,7 @@ describe('cuenta admin por defecto', () => {
     assert.equal((await as(token).get('/api/users/me')).status, 401, 'el token viejo ya no sirve')
     const pets = await as(res.body.token).get('/api/pets')
     assert.equal(pets.status, 200)
-    assert.equal(pets.body[0].name, 'Milo')
+    assert.deepEqual(pets.body.map(p => p.name).sort(), ['Copito', 'Luna', 'Milo', 'Rocky'])
   })
 })
 
