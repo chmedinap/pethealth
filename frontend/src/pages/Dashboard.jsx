@@ -6,6 +6,8 @@ import PetCard from '../components/PetCard'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { getPets } from '../api'
+import RemindersPanel from '../components/RemindersPanel'
+import { SPECIES, speciesMeta, speciesLabel } from '../utils/species'
 
 function SkeletonCard() {
   return (
@@ -48,11 +50,8 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const counts = {
-    all: pets.length,
-    dog: pets.filter(p => p.species === 'dog').length,
-    cat: pets.filter(p => p.species === 'cat').length,
-  }
+  const counts = { all: pets.length }
+  for (const p of pets) counts[p.species] = (counts[p.species] || 0) + 1
 
   const filtered = pets.filter(p => {
     const okFilter = filter === 'all' || p.species === filter
@@ -60,10 +59,10 @@ export default function Dashboard() {
     return okFilter && okSearch
   })
 
+  // Un filtro por cada especie presente, en el orden fijo de SPECIES
   const chips = [
     { k: 'all', label: t.dashboard.filterAll, emoji: '🐾' },
-    { k: 'dog', label: t.dashboard.filterDogs, emoji: '🐶' },
-    { k: 'cat', label: t.dashboard.filterCats, emoji: '🐱' },
+    ...SPECIES.filter(sp => counts[sp]).map(sp => ({ k: sp, label: speciesLabel(sp, t, true), emoji: speciesMeta(sp).emoji })),
   ]
 
   return (
@@ -110,8 +109,10 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {!loading && !error && pets.length > 0 && <RemindersPanel />}
+
         {/* Filter chips */}
-        {!loading && !error && pets.length > 0 && (
+        {!loading && !error && pets.length > 0 && chips.length > 2 && (
           <div className="filters">
             {chips.map(c => (
               <button key={c.k} className="chip" data-on={filter === c.k ? '1' : '0'} onClick={() => setFilter(c.k)}>

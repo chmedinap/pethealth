@@ -5,7 +5,7 @@ import { deleteAttachment } from '../api'
 const MAX_ATTACHMENTS = 3
 
 // `labels` es t.checkup o t.exam: ambos tienen las mismas claves de adjuntos.
-export default function Attachments({ attachments, setAttachments, upload, labels }) {
+export default function Attachments({ attachments, setAttachments, upload, labels, canEdit = true }) {
   const fileInputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
 
@@ -41,7 +41,7 @@ export default function Attachments({ attachments, setAttachments, upload, label
     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <span className="t-label muted-3">{labels.attachments}</span>
-        {attachments.length < MAX_ATTACHMENTS && (
+        {canEdit && attachments.length < MAX_ATTACHMENTS && (
           <>
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" style={{ display: 'none' }} onChange={handleUpload} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="btn btn-ghost btn-sm">
@@ -67,13 +67,13 @@ export default function Attachments({ attachments, setAttachments, upload, label
                 <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
                   {att.file_name}
                 </span>
-                <button
+                {canEdit && <button
                   onClick={e => { e.stopPropagation(); handleDelete(att.id) }}
                   aria-label={labels.deleteFileConfirm}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, display: 'flex' }}
                 >
                   <X size={14} />
-                </button>
+                </button>}
               </div>
             )
           })}

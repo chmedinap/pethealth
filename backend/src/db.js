@@ -88,14 +88,115 @@ db.exec(`
   );
 `)
 
-// ── Migración: mascotas por usuario ──────────────────────────────────────────
-// Bases creadas antes de esta versión no tienen pets.user_id; las mascotas
-// existentes se asignan al primer usuario (el admin original).
-const petColumns = db.prepare('PRAGMA table_info(pets)').all()
-if (!petColumns.some(c => c.name === 'user_id')) {
-  db.exec('ALTER TABLE pets ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE')
-  db.exec('UPDATE pets SET user_id = (SELECT MIN(id) FROM users)')
-  console.log('🔄 Migración: mascotas existentes asignadas al primer usuario')
+// ── Migraciones ───────────────────────────────────────────────────────────────
+// El esquema de arriba es el original (v0). Cada migración lleva la base a la
+// versión siguiente y se registra en PRAGMA user_version. Son idempotentes para
+// tolerar bases que ya tenían algún cambio aplicado antes de este sistema.
+function hasColumn(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column)
+}
+
+const MIGRATIONS = [
+  // 1 — mascotas por usuario: las existentes se asignan al primer usuario (admin)
+  () => {
+    if (hasColumn('pets', 'user_id')) return
+    db.exec('ALTER TABLE pets ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE')
+    db.exec('UPDATE pets SET user_id = (SELECT MIN(id) FROM users)')
+  },
+
+  // 2 — seguridad de cuentas: cambio de contraseña obligatorio y revocación de sesiones
+  () => {
+    if (!hasColumn('users', 'must_change_password')) {
+      db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0')
+    }
+    if (!hasColumn('users', 'token_version')) {
+      db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')
+    }
+    const admin = db.prepare("SELECT * FROM users WHERE username = 'admin'").get()
+    if (admin && bcrypt.compareSync('admin123', admin.password_hash)) {
+      db.prepare('UPDATE users SET must_change_password = 1 WHERE id = ?').run(admin.id)
+    }
+  },
+
+  // 3 — especies abiertas: SQLite no permite quitar un CHECK, así que se reconstruye
+  // la tabla. La lista de especies válidas vive en el código (routes/pets.js).
+  () => {
+    db.exec(`
+      CREATE TABLE pets_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        species TEXT NOT NULL,
+        breed TEXT,
+        birth_date DATE,
+        gender TEXT CHECK(gender IN ('male', 'female')),
+        weight_kg REAL,
+        photo_url TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO pets_new (id, user_id, name, species, breed, birth_date, gender, weight_kg, photo_url, notes, created_at)
+        SELECT id, user_id, name, species, breed, birth_date, gender, weight_kg, photo_url, notes, created_at FROM pets;
+      DROP TABLE pets;
+      ALTER TABLE pets_new RENAME TO pets;
+    `)
+  },
+
+  // 4 — historial de peso, vacunas y mascotas compartidas
+  () => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS weight_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        measured_on DATE NOT NULL,
+        weight_kg REAL NOT NULL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS vaccines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        date_given DATE NOT NULL,
+        next_due_date DATE,
+        vet_name TEXT,
+        batch_number TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS pet_shares (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL CHECK(role IN ('viewer', 'editor')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(pet_id, user_id)
+      );
+
+      -- El peso actual de cada mascota pasa a ser el primer punto de su historial
+      INSERT INTO weight_logs (pet_id, measured_on, weight_kg)
+        SELECT id, date(created_at), weight_kg FROM pets
+        WHERE weight_kg IS NOT NULL AND id NOT IN (SELECT pet_id FROM weight_logs);
+    `)
+  },
+]
+
+const currentVersion = db.pragma('user_version', { simple: true })
+if (currentVersion < MIGRATIONS.length) {
+  // Las reconstrucciones de tablas exigen desactivar las FK (fuera de la transacción)
+  db.pragma('foreign_keys = OFF')
+  for (let v = currentVersion; v < MIGRATIONS.length; v++) {
+    db.transaction(() => {
+      MIGRATIONS[v]()
+      db.pragma(`user_version = ${v + 1}`)
+    })()
+    console.log(`🔄 Migración ${v + 1} aplicada`)
+  }
+  const broken = db.pragma('foreign_key_check')
+  if (broken.length) console.error('⚠️  Claves foráneas inconsistentes tras migrar:', broken)
+  db.pragma('foreign_keys = ON')
 }
 
 db.exec(`
@@ -103,6 +204,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_checkups_pet ON checkups(pet_id);
   CREATE INDEX IF NOT EXISTS idx_exams_pet ON exams(pet_id);
   CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
+  CREATE INDEX IF NOT EXISTS idx_weight_logs_pet ON weight_logs(pet_id, measured_on);
+  CREATE INDEX IF NOT EXISTS idx_vaccines_pet ON vaccines(pet_id);
+  CREATE INDEX IF NOT EXISTS idx_pet_shares_user ON pet_shares(user_id);
 
   -- attachments es polimórfica (sin FK), así que sus filas se limpian con triggers.
   -- Los triggers también se disparan con los ON DELETE CASCADE desde pets.
@@ -126,8 +230,8 @@ db.exec(`
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get()
 if (userCount.count === 0) {
   const passwordHash = bcrypt.hashSync('admin123', 10)
-  db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run('admin', passwordHash)
-  console.log('⚠️  Usuario por defecto creado: admin / admin123 — ¡cámbialo pronto!')
+  db.prepare('INSERT INTO users (username, password_hash, must_change_password) VALUES (?, ?, 1)').run('admin', passwordHash)
+  console.log('⚠️  Usuario por defecto creado: admin / admin123 — se pedirá cambiarla al entrar')
 }
 
 // ── Mascota de demostración ───────────────────────────────────────────────────
@@ -255,6 +359,22 @@ if (petCount.count === 0 && userCount.count === 0) {
     for (const [param, val, unit, ref, abn] of hemaValues) {
       insertVal.run(exam2Id, param, val, unit, ref, abn)
     }
+
+    // ── Vacunas ───────────────────────────────────────────────────────────────
+    const insertVaccine = db.prepare(`
+      INSERT INTO vaccines (pet_id, name, date_given, next_due_date, vet_name, batch_number)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    insertVaccine.run(petId, 'Séxtuple (DHPPi+L)', '2024-11-15', '2025-11-15', 'Carlos Méndez', 'NBV-2291')
+    insertVaccine.run(petId, 'Rabia', '2024-11-15', '2027-11-15', 'Carlos Méndez', 'RAB-8812')
+    insertVaccine.run(petId, 'Bordetella', '2024-11-15', '2025-11-15', 'Carlos Méndez', null)
+
+    // ── Historial de peso ─────────────────────────────────────────────────────
+    const insertWeight = db.prepare('INSERT INTO weight_logs (pet_id, measured_on, weight_kg, notes) VALUES (?, ?, ?, ?)')
+    insertWeight.run(petId, '2023-06-12', 27.2, null)
+    insertWeight.run(petId, '2024-03-20', 26.8, 'Bajó por la gastroenteritis')
+    insertWeight.run(petId, '2024-11-15', 29.1, 'Sobrepeso leve — reducir porciones')
+    insertWeight.run(petId, '2025-05-15', 28.5, null)
 
   })()
 

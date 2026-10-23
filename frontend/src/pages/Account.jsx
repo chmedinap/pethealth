@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, KeyRound, Check, User } from 'lucide-react'
+import { ArrowLeft, KeyRound, Check, User, ShieldAlert, LogOut } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import { useLanguage } from '../context/LanguageContext'
-import { getMe, changePassword } from '../api'
+import { useAuth } from '../context/AuthContext'
+import { getMe, changePassword, revokeOtherSessions } from '../api'
 import { formatDate } from '../utils/format'
 
 const MIN_PASSWORD = 8
@@ -16,6 +17,9 @@ export default function Account() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [revokeMsg, setRevokeMsg] = useState('')
+  const { user, login } = useAuth()
+  const mustChange = !!user?.mustChangePassword
 
   useEffect(() => {
     getMe().then(res => setMe(res.data)).catch(() => {})
@@ -34,7 +38,9 @@ export default function Account() {
     if (form.next !== form.confirm) { setError(t.account.mismatch); return }
     setSaving(true)
     try {
-      await changePassword({ current_password: form.current, new_password: form.next })
+      // El backend revoca las demás sesiones y devuelve un token nuevo para esta
+      const res = await changePassword({ current_password: form.current, new_password: form.next })
+      login(res.data)
       setForm({ current: '', next: '', confirm: '' })
       setSuccess(true)
     } catch (err) {
@@ -44,15 +50,38 @@ export default function Account() {
     }
   }
 
+  async function handleRevoke() {
+    if (!window.confirm(t.account.revokeConfirm)) return
+    try {
+      const res = await revokeOtherSessions()
+      login(res.data)
+      setRevokeMsg(t.account.revokeDone)
+    } catch (err) {
+      setRevokeMsg(err.response?.data?.error || t.common.error500)
+    }
+  }
+
   return (
     <>
       <Navbar />
       <main style={{ paddingLeft: 24, paddingRight: 24, paddingBottom: 60, maxWidth: 1200, margin: '0 auto', boxSizing: 'border-box' }}>
         <div className="screen form-wrap">
-          <button className="back-btn" onClick={() => navigate('/')}>
-            <ArrowLeft size={18} strokeWidth={2.4} />
-            {t.dashboard.title}
-          </button>
+          {!mustChange && (
+            <button className="back-btn" onClick={() => navigate('/')}>
+              <ArrowLeft size={18} strokeWidth={2.4} />
+              {t.dashboard.title}
+            </button>
+          )}
+
+          {mustChange && (
+            <div className="notice notice-warning" role="alert">
+              <ShieldAlert size={20} />
+              <div>
+                <strong>{t.account.mustChangeTitle}</strong>
+                <p>{t.account.mustChangeBody}</p>
+              </div>
+            </div>
+          )}
 
           <div className="form-hero">
             <div className="fh-ic"><User size={26} /></div>
@@ -89,7 +118,12 @@ export default function Account() {
             </div>
 
             {error && <p style={{ color: 'var(--danger-ink)', fontWeight: 700, fontSize: 14, margin: '14px 0 0' }}>⚠️ {error}</p>}
-            {success && <p style={{ color: 'var(--success-ink)', fontWeight: 700, fontSize: 14, margin: '14px 0 0' }}>✓ {t.account.success}</p>}
+            {success && (
+              <p style={{ color: 'var(--success-ink)', fontWeight: 700, fontSize: 14, margin: '14px 0 0' }}>
+                ✓ {t.account.success}{' '}
+                <button type="button" className="link-btn" onClick={() => navigate('/')}>{t.account.goToPets}</button>
+              </p>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
               <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
@@ -98,6 +132,20 @@ export default function Account() {
               </button>
             </div>
           </form>
+
+          {!mustChange && (
+            <div className="fsection">
+              <div className="fsection-head">
+                <div className="fsection-num"><LogOut size={16} /></div>
+                <div>
+                  <h3 className="t-h3">{t.account.sessionsTitle}</h3>
+                  <p>{t.account.sessionsSub}</p>
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={handleRevoke}>{t.account.revokeBtn}</button>
+              {revokeMsg && <p style={{ color: 'var(--text-2)', fontWeight: 700, fontSize: 14, margin: '12px 0 0' }}>{revokeMsg}</p>}
+            </div>
+          )}
         </div>
       </main>
     </>

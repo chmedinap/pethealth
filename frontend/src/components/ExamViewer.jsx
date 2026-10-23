@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, FlaskConical, Pencil, X, Check, Paperclip, Calendar, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, FlaskConical, Pencil, X, Check, Paperclip, Calendar, Plus, Trash2, TrendingUp } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import {
   deleteExam, updateExam, uploadExamAttachment,
@@ -7,6 +7,7 @@ import {
 } from '../api'
 import { formatDate } from '../utils/format'
 import Attachments from './Attachments'
+import { normalizeParam } from '../utils/labs'
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-3)', border: '1.5px solid var(--border-2)',
@@ -104,7 +105,7 @@ function ExamValuesEditor({ values, onChange, errors, t }) {
   )
 }
 
-export default function ExamViewer({ exam, index = 0, onDelete, onUpdate }) {
+export default function ExamViewer({ exam, index = 0, canEdit = true, paramCounts = {}, onShowTrend, onDelete, onUpdate }) {
   const { t, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -251,7 +252,14 @@ export default function ExamViewer({ exam, index = 0, onDelete, onUpdate }) {
                           <tbody>
                             {examValues.map(val => (
                               <tr key={val.id} style={{ background: val.is_abnormal ? 'var(--danger-soft)' : 'transparent', borderTop: '1px solid var(--border)' }}>
-                                <td style={{ padding: '7px 10px', fontWeight: 600 }}>{val.parameter_name}</td>
+                                <td style={{ padding: '7px 10px', fontWeight: 600 }}>
+                                  {/* Solo es útil ver la evolución si el parámetro aparece en más de un examen */}
+                                  {onShowTrend && paramCounts[normalizeParam(val.parameter_name)] > 1 ? (
+                                    <button className="param-btn" onClick={() => onShowTrend(val.parameter_name)} title={t.labTrend.open}>
+                                      {val.parameter_name} <TrendingUp size={13} aria-label={t.labTrend.open} />
+                                    </button>
+                                  ) : val.parameter_name}
+                                </td>
                                 <td style={{ padding: '7px 10px', fontWeight: 700 }}>{val.value}</td>
                                 <td style={{ padding: '7px 10px', color: 'var(--text-3)' }}>{val.unit || '—'}</td>
                                 <td style={{ padding: '7px 10px', color: 'var(--text-3)' }}>{val.reference_range || '—'}</td>
@@ -269,14 +277,14 @@ export default function ExamViewer({ exam, index = 0, onDelete, onUpdate }) {
                     </div>
                   )}
 
-                  <div className="rec-actions">
+                  {canEdit && <div className="rec-actions">
                     <button onClick={startEditing} className="btn btn-ghost btn-sm">
                       <Pencil size={14} /> {t.exam.editBtn}
                     </button>
                     <button onClick={handleDelete} disabled={deleting} className="btn btn-danger btn-sm">
                       {deleting ? t.common.deleting : t.exam.deleteBtn}
                     </button>
-                  </div>
+                  </div>}
                 </>
               )}
 
@@ -285,6 +293,7 @@ export default function ExamViewer({ exam, index = 0, onDelete, onUpdate }) {
                 setAttachments={setAttachments}
                 upload={fd => uploadExamAttachment(exam.id, fd)}
                 labels={t.exam}
+                canEdit={canEdit}
               />
             </div>
           </div>

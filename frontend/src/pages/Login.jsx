@@ -37,7 +37,7 @@ export default function Login() {
     try {
       const { data } = await (isRegister ? registerUser : loginUser)({ username, password })
       login({ token: data.token, user: data.user })
-      navigate('/')
+      navigate(data.user.mustChangePassword ? '/account' : '/')
     } catch (err) {
       setError(err.response?.data?.error || t.common.error500)
     } finally {

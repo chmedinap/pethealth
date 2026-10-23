@@ -1,8 +1,10 @@
 const jwt = require('jsonwebtoken')
 const db = require('../db')
 const { JWT_SECRET } = require('../config')
+const { SESSION_COOKIE } = require('../session')
 
-const SESSION_COOKIE = 'ph_session'
+// Rutas permitidas mientras el usuario tiene pendiente cambiar la contraseña
+const PASSWORD_CHANGE_ALLOWED = new Set(['/api/users/me', '/api/users/me/password', '/api/auth/refresh'])
 
 function parseCookies(header = '') {
   const out = {}
@@ -17,9 +19,12 @@ function parseCookies(header = '') {
 function verifyToken(token) {
   try {
     const payload = jwt.verify(token, JWT_SECRET)
-    // El usuario podría haber sido eliminado después de emitir el token
-    const user = db.prepare('SELECT id, username FROM users WHERE id = ?').get(payload.id)
-    return user || null
+    const user = db.prepare(
+      'SELECT id, username, must_change_password, token_version FROM users WHERE id = ?'
+    ).get(payload.id)
+    // Usuario eliminado, o token emitido antes de revocar las sesiones
+    if (!user || (payload.tv || 0) !== user.token_version) return null
+    return user
   } catch {
     return null
   }
@@ -30,16 +35,18 @@ function bearerToken(req) {
   return header && header.startsWith('Bearer ') ? header.slice(7) : null
 }
 
-function unauthorized(res) {
-  res.status(401).json({ error: 'Token inválido o expirado' })
-}
-
 // API: solo header Authorization. No se acepta la cookie aquí, así las
 // peticiones que modifican datos no son vulnerables a CSRF.
 function authMiddleware(req, res, next) {
   const token = bearerToken(req)
   const user = token && verifyToken(token)
-  if (!user) return unauthorized(res)
+  if (!user) return res.status(401).json({ error: 'Token inválido o expirado' })
+
+  const path = req.originalUrl.split('?')[0]
+  if (user.must_change_password && !PASSWORD_CHANGE_ALLOWED.has(path)) {
+    return res.status(403).json({ error: 'Debes cambiar tu contraseña antes de continuar', code: 'PASSWORD_CHANGE_REQUIRED' })
+  }
+
   req.user = user
   next()
 }
@@ -57,4 +64,3 @@ function fileAuthMiddleware(req, res, next) {
 module.exports = authMiddleware
 module.exports.authMiddleware = authMiddleware
 module.exports.fileAuthMiddleware = fileAuthMiddleware
-module.exports.SESSION_COOKIE = SESSION_COOKIE

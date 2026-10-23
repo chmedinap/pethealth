@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { useLanguage } from '../context/LanguageContext'
 import { getPet, createPet, updatePet, uploadPetPhoto } from '../api'
+import { SPECIES, speciesMeta, speciesLabel } from '../utils/species'
 
 const inputStyle = { width: '100%', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '10px 14px', fontSize: '0.92rem', color: 'var(--text-primary)', fontFamily: 'Nunito, sans-serif', outline: 'none', boxSizing: 'border-box' }
 
@@ -107,7 +108,7 @@ export default function AddPet() {
               <div style={{ width: '100px', height: '100px', borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-tertiary)', border: '2px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {photoPreview
                   ? <img src={photoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <span style={{ fontSize: '2.5rem' }}>{form.species === 'cat' ? '🐱' : '🐶'}</span>
+                  : <span style={{ fontSize: '2.5rem' }}>{speciesMeta(form.species).emoji}</span>
                 }
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoSelect} />
@@ -122,8 +123,9 @@ export default function AddPet() {
 
             <Field label={t.addPet.species} required error={errors.species}>
               <select className="pet-input" style={inputStyle} value={form.species} onChange={e => set('species', e.target.value)}>
-                <option value="dog">{t.addPet.dogOption}</option>
-                <option value="cat">{t.addPet.catOption}</option>
+                {SPECIES.map(s => (
+                  <option key={s} value={s}>{speciesMeta(s).emoji} {speciesLabel(s, t)}</option>
+                ))}
               </select>
             </Field>
 

@@ -1,6 +1,7 @@
 const express = require('express')
 const db = require('../db')
-const { getOwnedPet, getOwnedExam, getOwnedExamValue } = require('../access')
+const { requireAccess } = require('../access')
+const { clean, isISODate } = require('../validate')
 const { uploadPdf, uploadAttachment, removeFile, removeFiles } = require('../files')
 
 const MAX_ATTACHMENTS = 3
@@ -24,10 +25,6 @@ function fullExam(exam) {
   }
 }
 
-function clean(value) {
-  return value === '' || value === undefined ? null : value
-}
-
 // checkup_id es opcional, pero si viene debe ser un checkup de la misma mascota
 function checkupBelongsToPet(checkupId, petId) {
   if (checkupId == null || checkupId === '') return true
@@ -40,30 +37,18 @@ function validateValue(v) {
   return null
 }
 
-function requireExam(req, res, next) {
-  req.exam = getOwnedExam(req.params.id, req.user.id)
-  if (!req.exam) return res.status(404).json({ error: 'Examen no encontrado' })
-  next()
-}
-
 // ── Router montado en /api/pets ───────────────────────────────────────────────
 const petRouter = express.Router()
 
-// Se ejecuta antes de multer: no se escribe ningún PDF para mascotas ajenas
-petRouter.param('petId', (req, res, next, petId) => {
-  req.pet = getOwnedPet(petId, req.user.id)
-  if (!req.pet) return res.status(404).json({ error: 'Mascota no encontrada' })
-  next()
-})
-
-petRouter.get('/:petId/exams', (req, res) => {
+petRouter.get('/:petId/exams', requireAccess('pet', 'viewer', 'petId'), (req, res) => {
   const exams = db.prepare(
     'SELECT * FROM exams WHERE pet_id = ? ORDER BY exam_date DESC'
   ).all(req.pet.id)
   res.json(exams.map(fullExam))
 })
 
-petRouter.post('/:petId/exams', uploadPdf.single('pdf'), (req, res) => {
+// requireAccess va antes de multer: no se escribe ningún PDF sin permiso
+petRouter.post('/:petId/exams', requireAccess('pet', 'editor', 'petId'), uploadPdf.single('pdf'), (req, res) => {
   const pdf_url = req.file ? `/uploads/pdfs/${req.file.filename}` : null
   const reject = (error) => {
     if (pdf_url) removeFile(pdf_url)
@@ -72,6 +57,7 @@ petRouter.post('/:petId/exams', uploadPdf.single('pdf'), (req, res) => {
 
   const { exam_type, exam_date, lab_name, checkup_id, notes } = req.body
   if (!exam_type || !exam_date) return reject('exam_type y exam_date son requeridos')
+  if (!isISODate(exam_date)) return reject('exam_date debe tener formato YYYY-MM-DD')
   if (!checkupBelongsToPet(checkup_id, req.pet.id)) return reject('checkup_id no pertenece a esta mascota')
 
   let values = []
@@ -108,11 +94,11 @@ petRouter.post('/:petId/exams', uploadPdf.single('pdf'), (req, res) => {
 // ── Router montado en /api/exams ──────────────────────────────────────────────
 const examRouter = express.Router()
 
-examRouter.get('/:id', requireExam, (req, res) => {
+examRouter.get('/:id', requireAccess('exam', 'viewer'), (req, res) => {
   res.json(fullExam(req.exam))
 })
 
-examRouter.put('/:id', requireExam, (req, res) => {
+examRouter.put('/:id', requireAccess('exam', 'editor'), (req, res) => {
   const allowed = ['exam_type', 'exam_date', 'lab_name', 'checkup_id', 'notes']
   const fields = Object.keys(req.body).filter(k => allowed.includes(k))
   if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' })
@@ -120,6 +106,9 @@ examRouter.put('/:id', requireExam, (req, res) => {
     if (fields.includes(required) && !String(req.body[required] || '').trim()) {
       return res.status(400).json({ error: `${required} no puede estar vacío` })
     }
+  }
+  if (fields.includes('exam_date') && !isISODate(req.body.exam_date)) {
+    return res.status(400).json({ error: 'exam_date debe tener formato YYYY-MM-DD' })
   }
   if (fields.includes('checkup_id') && !checkupBelongsToPet(req.body.checkup_id, req.exam.pet_id)) {
     return res.status(400).json({ error: 'checkup_id no pertenece a esta mascota' })
@@ -131,7 +120,7 @@ examRouter.put('/:id', requireExam, (req, res) => {
   res.json(fullExam(db.prepare('SELECT * FROM exams WHERE id = ?').get(req.exam.id)))
 })
 
-examRouter.delete('/:id', requireExam, (req, res) => {
+examRouter.delete('/:id', requireAccess('exam', 'editor'), (req, res) => {
   const files = getAttachments(req.exam.id).map(a => a.file_url)
   if (req.exam.pdf_url) files.push(req.exam.pdf_url)
   // El trigger trg_exam_attachments borra las filas de attachments
@@ -140,7 +129,7 @@ examRouter.delete('/:id', requireExam, (req, res) => {
   res.json({ message: 'Examen eliminado' })
 })
 
-examRouter.post('/:id/values', requireExam, (req, res) => {
+examRouter.post('/:id/values', requireAccess('exam', 'editor'), (req, res) => {
   const values = Array.isArray(req.body) ? req.body : []
   if (values.length === 0) return res.status(400).json({ error: 'Se requiere un array de valores' })
   for (const v of values) {
@@ -163,7 +152,7 @@ examRouter.post('/:id/values', requireExam, (req, res) => {
 })
 
 // GET /api/exams/:id/attachments
-examRouter.get('/:id/attachments', requireExam, (req, res) => {
+examRouter.get('/:id/attachments', requireAccess('exam', 'viewer'), (req, res) => {
   res.json(getAttachments(req.exam.id))
 })
 
@@ -177,7 +166,7 @@ function checkAttachmentLimit(req, res, next) {
 }
 
 // POST /api/exams/:id/attachments
-examRouter.post('/:id/attachments', requireExam, checkAttachmentLimit, uploadAttachment.single('file'), (req, res) => {
+examRouter.post('/:id/attachments', requireAccess('exam', 'editor'), checkAttachmentLimit, uploadAttachment.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' })
 
   const file_url = `/uploads/attachments/${req.file.filename}`
@@ -194,13 +183,7 @@ examRouter.post('/:id/attachments', requireExam, checkAttachmentLimit, uploadAtt
 // ── Router montado en /api/exam-values ───────────────────────────────────────
 const examValueRouter = express.Router()
 
-examValueRouter.param('id', (req, res, next, id) => {
-  req.examValue = getOwnedExamValue(id, req.user.id)
-  if (!req.examValue) return res.status(404).json({ error: 'Valor no encontrado' })
-  next()
-})
-
-examValueRouter.put('/:id', (req, res) => {
+examValueRouter.put('/:id', requireAccess('examValue', 'editor'), (req, res) => {
   const allowed = ['parameter_name', 'value', 'unit', 'reference_range', 'is_abnormal']
   const fields = Object.keys(req.body).filter(k => allowed.includes(k))
   if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' })
@@ -215,7 +198,7 @@ examValueRouter.put('/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM exam_values WHERE id = ?').get(req.examValue.id))
 })
 
-examValueRouter.delete('/:id', (req, res) => {
+examValueRouter.delete('/:id', requireAccess('examValue', 'editor'), (req, res) => {
   db.prepare('DELETE FROM exam_values WHERE id = ?').run(req.examValue.id)
   res.json({ message: 'Valor eliminado' })
 })

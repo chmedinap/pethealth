@@ -47,7 +47,7 @@ async function syncMedications(checkupId, original, drafts) {
   return saved
 }
 
-export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) {
+export default function CheckupCard({ checkup, index = 0, canEdit = true, onDelete, onUpdate }) {
   const { t, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -222,14 +222,14 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
                     </div>
                   )}
 
-                  <div className="rec-actions">
+                  {canEdit && <div className="rec-actions">
                     <button onClick={startEditing} className="btn btn-ghost btn-sm">
                       <Pencil size={14} /> {t.checkup.editBtn}
                     </button>
                     <button onClick={handleDelete} disabled={deleting} className="btn btn-danger btn-sm">
                       {deleting ? t.common.deleting : t.checkup.deleteBtn}
                     </button>
-                  </div>
+                  </div>}
                 </>
               )}
 
@@ -238,6 +238,7 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
                 setAttachments={setAttachments}
                 upload={fd => uploadCheckupAttachment(checkup.id, fd)}
                 labels={t.checkup}
+                canEdit={canEdit}
               />
             </div>
           </div>

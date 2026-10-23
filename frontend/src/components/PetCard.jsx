@@ -1,14 +1,17 @@
 import { useNavigate } from 'react-router-dom'
-import { Stethoscope, Scale, ArrowRight } from 'lucide-react'
+import { Stethoscope, Scale, ArrowRight, Users } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { calcAge, relativeDate } from '../utils/format'
+import { speciesMeta, speciesLabel } from '../utils/species'
 
 export default function PetCard({ pet, index = 0 }) {
   const navigate = useNavigate()
   const { t, lang } = useLanguage()
 
-  const speciesEmoji = pet.species === 'cat' ? '🐱' : '🐶'
-  const speciesCls = pet.species === 'cat' ? 'badge-cat' : 'badge-dog'
+  const meta = speciesMeta(pet.species)
+  const speciesEmoji = meta.emoji
+  const speciesCls = meta.badge
+  const shared = pet.access && pet.access !== 'owner'
   const age = calcAge(pet.birth_date, t.common)
   const lastVisit = relativeDate(pet.last_checkup, lang)
 
@@ -31,7 +34,7 @@ export default function PetCard({ pet, index = 0 }) {
         ) : (
           <div
             className="photo"
-            style={{ height: 170, borderRadius: 0, '--tint': pet.species === 'cat' ? 'var(--accent)' : 'var(--secondary)' }}
+            style={{ height: 170, borderRadius: 0, '--tint': meta.tint }}
           >
             <span className="ph-emoji">{speciesEmoji}</span>
           </div>
@@ -41,9 +44,16 @@ export default function PetCard({ pet, index = 0 }) {
         <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}>
           <span className={`badge ${speciesCls}`}>
             <span className="emoji">{speciesEmoji}</span>
-            {pet.species === 'cat' ? t.common.cat : t.common.dog}
+            {speciesLabel(pet.species, t)}
           </span>
         </div>
+        {shared && (
+          <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}>
+            <span className="badge badge-neutral" title={t.share.sharedBy.replace('{owner}', pet.owner_username)}>
+              <Users size={12} /> {pet.access === 'editor' ? t.share.roleEditor : t.share.roleViewer}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Body */}

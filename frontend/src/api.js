@@ -23,6 +23,10 @@ api.interceptors.response.use(
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
+    // Cuenta con la contraseña por defecto: el backend bloquea todo hasta cambiarla
+    if (error.response?.data?.code === 'PASSWORD_CHANGE_REQUIRED' && window.location.pathname !== '/account') {
+      window.location.href = '/account'
+    }
     return Promise.reject(error)
   }
 )
@@ -37,6 +41,7 @@ export const logoutUser = () => api.post('/auth/logout')
 // Users
 export const getMe = () => api.get('/users/me')
 export const changePassword = (data) => api.put('/users/me/password', data)
+export const revokeOtherSessions = () => api.post('/users/me/sessions/revoke')
 
 // Pets
 export const getPets = () => api.get('/pets')
@@ -45,6 +50,25 @@ export const createPet = (data) => api.post('/pets', data)
 export const updatePet = (id, data) => api.put(`/pets/${id}`, data)
 export const deletePet = (id) => api.delete(`/pets/${id}`)
 export const uploadPetPhoto = (id, formData) => api.post(`/pets/${id}/photo`, formData)
+
+// Sharing
+export const getPetShares = (petId) => api.get(`/pets/${petId}/shares`)
+export const sharePet = (petId, data) => api.post(`/pets/${petId}/shares`, data)
+export const removePetShare = (petId, userId) => api.delete(`/pets/${petId}/shares/${userId}`)
+
+// Vaccines
+export const getPetVaccines = (petId) => api.get(`/pets/${petId}/vaccines`)
+export const createVaccine = (petId, data) => api.post(`/pets/${petId}/vaccines`, data)
+export const updateVaccine = (id, data) => api.put(`/vaccines/${id}`, data)
+export const deleteVaccine = (id) => api.delete(`/vaccines/${id}`)
+
+// Weight history
+export const getPetWeights = (petId) => api.get(`/pets/${petId}/weights`)
+export const createWeight = (petId, data) => api.post(`/pets/${petId}/weights`, data)
+export const deleteWeight = (id) => api.delete(`/weights/${id}`)
+
+// Reminders
+export const getReminders = (today, days = 30) => api.get('/reminders', { params: { today, days } })
 
 // Checkups
 export const getPetCheckups = (petId) => api.get(`/pets/${petId}/checkups`)

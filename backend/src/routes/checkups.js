@@ -1,6 +1,7 @@
 const express = require('express')
 const db = require('../db')
-const { getOwnedPet, getOwnedCheckup, getOwnedMedication } = require('../access')
+const { requireAccess } = require('../access')
+const { clean, isISODate } = require('../validate')
 const { uploadAttachment, removeFiles } = require('../files')
 
 const MAX_ATTACHMENTS = 3
@@ -24,42 +25,29 @@ function fullCheckup(checkup) {
   }
 }
 
-function clean(value) {
-  return value === '' || value === undefined ? null : value
-}
-
 function validateMedication(med) {
   if (!med || !String(med.name || '').trim()) return 'name es requerido en cada medicamento'
   if (!String(med.frequency || '').trim()) return 'frequency es requerido en cada medicamento'
   return null
 }
 
-function requireCheckup(req, res, next) {
-  req.checkup = getOwnedCheckup(req.params.id, req.user.id)
-  if (!req.checkup) return res.status(404).json({ error: 'Checkup no encontrado' })
-  next()
-}
-
 // ── Router montado en /api/pets ───────────────────────────────────────────────
 const petRouter = express.Router()
 
-petRouter.param('petId', (req, res, next, petId) => {
-  req.pet = getOwnedPet(petId, req.user.id)
-  if (!req.pet) return res.status(404).json({ error: 'Mascota no encontrada' })
-  next()
-})
-
-petRouter.get('/:petId/checkups', (req, res) => {
+petRouter.get('/:petId/checkups', requireAccess('pet', 'viewer', 'petId'), (req, res) => {
   const checkups = db.prepare(
     'SELECT * FROM checkups WHERE pet_id = ? ORDER BY checkup_date DESC'
   ).all(req.pet.id)
   res.json(checkups.map(fullCheckup))
 })
 
-petRouter.post('/:petId/checkups', (req, res) => {
+petRouter.post('/:petId/checkups', requireAccess('pet', 'editor', 'petId'), (req, res) => {
   const { vet_name, clinic_name, checkup_date, reason, diagnosis, observations, next_visit_date, medications } = req.body
   if (!vet_name || !checkup_date || !reason) {
     return res.status(400).json({ error: 'vet_name, checkup_date y reason son requeridos' })
+  }
+  if (!isISODate(checkup_date) || (next_visit_date && !isISODate(next_visit_date))) {
+    return res.status(400).json({ error: 'Las fechas deben tener formato YYYY-MM-DD' })
   }
   const meds = Array.isArray(medications) ? medications : []
   for (const med of meds) {
@@ -91,17 +79,22 @@ petRouter.post('/:petId/checkups', (req, res) => {
 // ── Router montado en /api/checkups ──────────────────────────────────────────
 const checkupRouter = express.Router()
 
-checkupRouter.get('/:id', requireCheckup, (req, res) => {
+checkupRouter.get('/:id', requireAccess('checkup', 'viewer'), (req, res) => {
   res.json(fullCheckup(req.checkup))
 })
 
-checkupRouter.put('/:id', requireCheckup, (req, res) => {
+checkupRouter.put('/:id', requireAccess('checkup', 'editor'), (req, res) => {
   const allowed = ['vet_name', 'clinic_name', 'checkup_date', 'reason', 'diagnosis', 'observations', 'next_visit_date']
   const fields = Object.keys(req.body).filter(k => allowed.includes(k))
   if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' })
   for (const required of ['vet_name', 'checkup_date', 'reason']) {
     if (fields.includes(required) && !String(req.body[required] || '').trim()) {
       return res.status(400).json({ error: `${required} no puede estar vacío` })
+    }
+  }
+  for (const f of ['checkup_date', 'next_visit_date']) {
+    if (fields.includes(f) && clean(req.body[f]) != null && !isISODate(req.body[f])) {
+      return res.status(400).json({ error: 'Las fechas deben tener formato YYYY-MM-DD' })
     }
   }
 
@@ -111,7 +104,7 @@ checkupRouter.put('/:id', requireCheckup, (req, res) => {
   res.json(fullCheckup(db.prepare('SELECT * FROM checkups WHERE id = ?').get(req.checkup.id)))
 })
 
-checkupRouter.delete('/:id', requireCheckup, (req, res) => {
+checkupRouter.delete('/:id', requireAccess('checkup', 'editor'), (req, res) => {
   const files = getAttachments(req.checkup.id).map(a => a.file_url)
   // El trigger trg_checkup_attachments borra las filas de attachments
   db.prepare('DELETE FROM checkups WHERE id = ?').run(req.checkup.id)
@@ -119,11 +112,11 @@ checkupRouter.delete('/:id', requireCheckup, (req, res) => {
   res.json({ message: 'Checkup eliminado' })
 })
 
-checkupRouter.get('/:id/medications', requireCheckup, (req, res) => {
+checkupRouter.get('/:id/medications', requireAccess('checkup', 'viewer'), (req, res) => {
   res.json(getMedications(req.checkup.id))
 })
 
-checkupRouter.post('/:id/medications', requireCheckup, (req, res) => {
+checkupRouter.post('/:id/medications', requireAccess('checkup', 'editor'), (req, res) => {
   const error = validateMedication(req.body)
   if (error) return res.status(400).json({ error })
 
@@ -137,7 +130,7 @@ checkupRouter.post('/:id/medications', requireCheckup, (req, res) => {
 })
 
 // GET /api/checkups/:id/attachments
-checkupRouter.get('/:id/attachments', requireCheckup, (req, res) => {
+checkupRouter.get('/:id/attachments', requireAccess('checkup', 'viewer'), (req, res) => {
   res.json(getAttachments(req.checkup.id))
 })
 
@@ -151,7 +144,7 @@ function checkAttachmentLimit(req, res, next) {
 }
 
 // POST /api/checkups/:id/attachments
-checkupRouter.post('/:id/attachments', requireCheckup, checkAttachmentLimit, uploadAttachment.single('file'), (req, res) => {
+checkupRouter.post('/:id/attachments', requireAccess('checkup', 'editor'), checkAttachmentLimit, uploadAttachment.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' })
 
   const file_url = `/uploads/attachments/${req.file.filename}`
@@ -168,13 +161,7 @@ checkupRouter.post('/:id/attachments', requireCheckup, checkAttachmentLimit, upl
 // ── Router montado en /api/medications ───────────────────────────────────────
 const medicationRouter = express.Router()
 
-medicationRouter.param('id', (req, res, next, id) => {
-  req.medication = getOwnedMedication(id, req.user.id)
-  if (!req.medication) return res.status(404).json({ error: 'Medicamento no encontrado' })
-  next()
-})
-
-medicationRouter.put('/:id', (req, res) => {
+medicationRouter.put('/:id', requireAccess('medication', 'editor'), (req, res) => {
   const allowed = ['name', 'concentration', 'frequency', 'duration_days', 'notes']
   const fields = Object.keys(req.body).filter(k => allowed.includes(k))
   if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' })
@@ -188,7 +175,7 @@ medicationRouter.put('/:id', (req, res) => {
   res.json(db.prepare('SELECT * FROM medications WHERE id = ?').get(req.medication.id))
 })
 
-medicationRouter.delete('/:id', (req, res) => {
+medicationRouter.delete('/:id', requireAccess('medication', 'editor'), (req, res) => {
   db.prepare('DELETE FROM medications WHERE id = ?').run(req.medication.id)
   res.json({ message: 'Medicamento eliminado' })
 })

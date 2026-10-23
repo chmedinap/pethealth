@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LanguageProvider } from './context/LanguageContext'
@@ -9,11 +9,16 @@ import PetProfile from './pages/PetProfile'
 import AddCheckup from './pages/AddCheckup'
 import AddExam from './pages/AddExam'
 import Account from './pages/Account'
+import PetReport from './pages/PetReport'
 
 function PrivateRoute() {
-  const { isAuthenticated, sessionReady } = useAuth()
+  const { isAuthenticated, sessionReady, user } = useAuth()
+  const location = useLocation()
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  return sessionReady ? <Outlet /> : null
+  if (!sessionReady) return null
+  // La cuenta con contraseña por defecto solo puede usar la página de cuenta
+  if (user?.mustChangePassword && location.pathname !== '/account') return <Navigate to="/account" replace />
+  return <Outlet />
 }
 
 function AppRoutes() {
@@ -27,6 +32,7 @@ function AppRoutes() {
         <Route path="/pets/:id/edit" element={<AddPet />} />
         <Route path="/pets/:id/checkups/new" element={<AddCheckup />} />
         <Route path="/pets/:id/exams/new" element={<AddExam />} />
+        <Route path="/pets/:id/report" element={<PetReport />} />
         <Route path="/account" element={<Account />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
