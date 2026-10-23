@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Navigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, Share2, Cake, Scale, Syringe, Stethoscope, FlaskConical, Plus,
-  Users, FileText, LogOut,
+  Users, FileText, LogOut, Camera, ChevronRight, AlertTriangle, CheckCircle2,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import CheckupCard from '../components/CheckupCard'
@@ -21,6 +21,7 @@ import { calcAge, copyText, formatDate, todayISO } from '../utils/format'
 import { speciesMeta, speciesLabel } from '../utils/species'
 import { vaccineStatus, latestDoseIds } from '../utils/vaccines'
 import { parameterCounts } from '../utils/labs'
+import { useFeedback } from '../context/FeedbackContext'
 
 const TABS = ['checkups', 'exams', 'vaccines', 'weight']
 
@@ -73,15 +74,33 @@ function buildSummary(pet, checkups, exams, vaccines, t, lang) {
   return lines.join('\n')
 }
 
-function Vital({ icon: Icon, label, value, unit }) {
+function Vital({ icon: Icon, label, value, unit, children }) {
   return (
     <div className="vital">
       <div className="vi"><Icon size={16} /></div>
       <div>
         <div className="k">{label}</div>
-        <div className="v">{value}{unit && <small> {unit}</small>}</div>
+        {children || <div className="v">{value}{unit && <small> {unit}</small>}</div>}
       </div>
     </div>
+  )
+}
+
+// Estado de vacunas con texto (no solo ✓ / ⚠)
+function VaccineVital({ overdue, total, t }) {
+  if (overdue) return <span className="status status-overdue" style={{ marginTop: 2 }}><AlertTriangle size={12} /> {overdue} {t.vaccines.statusOverdue.toLowerCase()}</span>
+  if (total) return <span className="status status-ok" style={{ marginTop: 2 }}><CheckCircle2 size={12} /> {t.vaccines.statusOk}</span>
+  return <div className="v">—</div>
+}
+
+function ActionRow({ icon: Icon, label, onClick, hint }) {
+  return (
+    <button className="action-row" onClick={onClick}>
+      <Icon size={17} className="action-ic" />
+      <span className="action-label">{label}</span>
+      {hint && <span className="action-hint">{hint}</span>}
+      <ChevronRight size={16} className="action-chev" />
+    </button>
   )
 }
 
@@ -105,10 +124,11 @@ export default function PetProfile() {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
   const { t, lang } = useLanguage()
+  const { askConfirm, toast } = useFeedback()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'checkups'
-  const setTab = next => setSearchParams(next === 'checkups' ? {} : { tab: next }, { replace: true })
+  const setTab = next => { setAddRequest(0); setSearchParams(next === 'checkups' ? {} : { tab: next }, { replace: true }) }
 
   const [pet, setPet] = useState(null)
   const [checkups, setCheckups] = useState([])
@@ -120,6 +140,7 @@ export default function PetProfile() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [trendParam, setTrendParam] = useState(null)
   const [sharing, setSharing] = useState(false)
+  const [addRequest, setAddRequest] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -151,7 +172,7 @@ export default function PetProfile() {
       const res = await uploadPetPhoto(id, form)
       setPet(prev => ({ ...prev, photo_url: res.data.photo_url }))
     } catch (err) {
-      alert(err.response?.data?.error || t.profile.uploadError)
+      toast(err.response?.data?.error || t.profile.uploadError)
     } finally {
       setUploadingPhoto(false)
       e.target.value = ''
@@ -165,30 +186,30 @@ export default function PetProfile() {
         await navigator.share({ title: t.profile.summaryTitle.replace('{name}', pet.name), text })
       } else {
         await copyText(text)
-        alert(t.profile.shareCopied)
+        toast(t.profile.shareCopied, 'success')
       }
     } catch (err) {
-      if (err?.name !== 'AbortError') alert(t.profile.shareError)
+      if (err?.name !== 'AbortError') toast(t.profile.shareError)
     }
   }
 
   async function handleDelete() {
-    if (!window.confirm(t.profile.deleteConfirm.replace('{name}', pet.name))) return
+    if (!await askConfirm(t.profile.deleteConfirm.replace('{name}', pet.name))) return
     try {
       await deletePet(id)
       navigate('/')
     } catch {
-      alert(t.profile.deleteError)
+      toast(t.profile.deleteError)
     }
   }
 
   async function handleLeave() {
-    if (!window.confirm(t.share.leaveConfirm.replace('{name}', pet.name))) return
+    if (!await askConfirm(t.share.leaveConfirm.replace('{name}', pet.name))) return
     try {
       await removePetShare(id, user.id)
       navigate('/')
     } catch {
-      alert(t.common.error500)
+      toast(t.common.error500)
     }
   }
 
@@ -217,7 +238,9 @@ export default function PetProfile() {
     { k: 'vaccines', icon: Syringe, label: t.profile.vaccinesTitle, n: vaccines.length },
     { k: 'weight', icon: Scale, label: t.profile.weightTitle, n: weights.length },
   ]
-  const newAction = { checkups: t.profile.newCheckup, exams: t.profile.newExam }[tab]
+  const newAction = { checkups: t.profile.newCheckup, exams: t.profile.newExam, vaccines: t.vaccines.add, weight: t.weight.add }[tab]
+  // Consultas y exámenes abren su página; vacunas y peso abren el formulario en línea
+  const onNewAction = () => (tab === 'checkups' || tab === 'exams' ? navigate(`/pets/${id}/${tab}/new`) : setAddRequest(n => n + 1))
 
   return (
     <>
@@ -233,7 +256,7 @@ export default function PetProfile() {
             {/* ── HERO ── */}
             <aside className="pet-hero">
               <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
-                <div style={{ position: 'relative' }}>
+                <div className="hero-photo">
                   {pet.photo_url ? (
                     <div style={{ height: 230 }}>
                       <img src={pet.photo_url} alt={pet.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -243,10 +266,18 @@ export default function PetProfile() {
                       <span className="ph-emoji" style={{ fontSize: '3.5em' }}>{meta.emoji}</span>
                     </div>
                   )}
+                  {canEdit && (
+                    <>
+                      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={handlePhotoChange} />
+                      <button className="photo-btn" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}>
+                        <Camera size={15} /> {uploadingPhoto ? t.profile.uploading : t.profile.changePhoto}
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 <div className="pet-hero-body">
-                  <h1 className="t-h1">{pet.name} <span style={{ fontSize: 22 }}>{meta.emoji}</span></h1>
+                  <h1 className="t-h1">{pet.name}</h1>
 
                   <div className="pet-badges">
                     <span className={`badge ${meta.badge}`}>
@@ -275,7 +306,9 @@ export default function PetProfile() {
                     <Vital icon={Cake} label={t.profile.age} value={calcAge(pet.birth_date, t.common)} />
                     <Vital icon={Scale} label={t.profile.weight} value={pet.weight_kg != null ? pet.weight_kg.toLocaleString(lang === 'en' ? 'en-US' : 'es-ES') : '—'} unit={pet.weight_kg != null ? t.common.kg : null} />
                     <Vital icon={Stethoscope} label={t.profile.lastCheckup} value={checkups[0] ? formatDate(checkups[0].checkup_date, lang) : '—'} />
-                    <Vital icon={Syringe} label={t.profile.vaccinesTitle} value={overdueVaccines ? `⚠ ${overdueVaccines}` : (vaccines.length ? '✓' : '—')} unit={overdueVaccines ? t.vaccines.statusOverdue.toLowerCase() : null} />
+                    <Vital icon={Syringe} label={t.profile.vaccinesTitle}>
+                      <VaccineVital overdue={overdueVaccines} total={vaccines.length} t={t} />
+                    </Vital>
                   </div>
 
                   {pet.notes && (
@@ -286,30 +319,21 @@ export default function PetProfile() {
                   )}
 
                   {canEdit && (
-                    <div style={{ marginBottom: 12 }}>
-                      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={handlePhotoChange} />
-                      <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto} style={{ width: '100%' }}>
-                        {uploadingPhoto ? t.profile.uploading : t.profile.changePhoto}
-                      </button>
-                    </div>
+                    <button className="btn btn-outline btn-block" onClick={() => navigate(`/pets/${id}/edit`)}>
+                      <Pencil size={16} /> {t.profile.editBtn}
+                    </button>
                   )}
 
-                  <div className="hero-actions">
-                    {canEdit && (
-                      <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => navigate(`/pets/${id}/edit`)}>
-                        <Pencil size={16} /> {t.profile.editBtn}
-                      </button>
-                    )}
-                    <button className="icon-btn" onClick={handleShareSummary} title={t.profile.share} aria-label={t.profile.share}><Share2 size={18} /></button>
-                    <button className="icon-btn" onClick={() => navigate(`/pets/${id}/report`)} title={t.report.open} aria-label={t.report.open}><FileText size={18} /></button>
-                    {isOwner && (
-                      <button className="icon-btn" onClick={() => setSharing(true)} title={t.share.manage} aria-label={t.share.manage}><Users size={18} /></button>
-                    )}
+                  <div className="action-list">
+                    <ActionRow icon={Share2} label={t.profile.share} onClick={handleShareSummary} />
+                    <ActionRow icon={FileText} label={t.report.open} onClick={() => navigate(`/pets/${id}/report`)} />
+                    {isOwner && <ActionRow icon={Users} label={t.share.manage} onClick={() => setSharing(true)} />}
                   </div>
-                  <div style={{ marginTop: 10 }}>
+
+                  <div className="hero-foot">
                     {isOwner
-                      ? <button className="btn btn-danger btn-sm" style={{ width: '100%' }} onClick={handleDelete}>{t.profile.deleteBtn}</button>
-                      : <button className="btn btn-ghost btn-sm" style={{ width: '100%' }} onClick={handleLeave}><LogOut size={15} /> {t.share.leave}</button>}
+                      ? <button className="link-danger" onClick={handleDelete}>{t.profile.deleteBtn}…</button>
+                      : <button className="link-danger" onClick={handleLeave}><LogOut size={14} /> {t.share.leave}</button>}
                   </div>
                 </div>
               </div>
@@ -329,7 +353,7 @@ export default function PetProfile() {
                 </div>
                 <div style={{ marginLeft: 'auto' }} />
                 {canEdit && newAction && (
-                  <button className="btn btn-primary btn-sm" onClick={() => navigate(`/pets/${id}/${tab}/new`)}>
+                  <button className="btn btn-primary btn-sm" onClick={onNewAction}>
                     <Plus size={16} strokeWidth={2.6} />
                     {newAction}
                   </button>
@@ -338,16 +362,22 @@ export default function PetProfile() {
 
               {tab === 'checkups' && (checkups.length > 0 ? (
                 <div className="timeline">
-                  {checkups.map((c, i) => (
+                  {checkups.map((c, i) => {
+                    const year = (c.checkup_date || '').slice(0, 4)
+                    const showYear = year && year !== (checkups[i - 1]?.checkup_date || '').slice(0, 4)
+                    return (
+                    <Fragment key={c.id}>
+                    {showYear && <div className="tl-year">{year}</div>}
                     <CheckupCard
-                      key={c.id}
                       checkup={c}
                       index={i}
                       canEdit={canEdit}
                       onDelete={did => setCheckups(prev => prev.filter(x => x.id !== did))}
                       onUpdate={updated => setCheckups(prev => prev.map(x => x.id === updated.id ? updated : x))}
                     />
-                  ))}
+                    </Fragment>
+                    )
+                  })}
                 </div>
               ) : (
                 <EmptySection
@@ -379,11 +409,11 @@ export default function PetProfile() {
               ))}
 
               {tab === 'vaccines' && (
-                <VaccineList pet={pet} vaccines={vaccines} setVaccines={setVaccines} canEdit={canEdit} />
+                <VaccineList pet={pet} vaccines={vaccines} setVaccines={setVaccines} canEdit={canEdit} addRequest={addRequest} />
               )}
 
               {tab === 'weight' && (
-                <WeightPanel pet={pet} weights={weights} setWeights={setWeights} canEdit={canEdit} onPetUpdate={setPet} />
+                <WeightPanel pet={pet} weights={weights} setWeights={setWeights} canEdit={canEdit} onPetUpdate={setPet} addRequest={addRequest} />
               )}
             </section>
           </div>

@@ -5,9 +5,10 @@ import {
   deleteCheckup, updateCheckup, uploadCheckupAttachment,
   createMedication, updateMedication, deleteMedication,
 } from '../api'
-import { formatDate } from '../utils/format'
+import { formatDate, relativeDate, todayISO } from '../utils/format'
 import Attachments from './Attachments'
 import MedicationForm, { toMedicationDraft, medicationPayload, validateMedications } from './MedicationForm'
+import { useFeedback } from '../context/FeedbackContext'
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-3)', border: '1.5px solid var(--border-2)',
@@ -49,6 +50,7 @@ async function syncMedications(checkupId, original, drafts) {
 
 export default function CheckupCard({ checkup, index = 0, canEdit = true, onDelete, onUpdate }) {
   const { t, lang } = useLanguage()
+  const { askConfirm, toast } = useFeedback()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -59,6 +61,7 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
   const [medErrors, setMedErrors] = useState({})
 
   const medications = checkup.medications || []
+  const upcomingVisit = checkup.next_visit_date && checkup.next_visit_date >= todayISO()
 
   function startEditing() {
     setEditForm(formFromCheckup(checkup))
@@ -68,13 +71,13 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
   }
 
   async function handleDelete() {
-    if (!window.confirm(t.checkup.deleteConfirm)) return
+    if (!await askConfirm(t.checkup.deleteConfirm)) return
     setDeleting(true)
     try {
       await deleteCheckup(checkup.id)
       onDelete(checkup.id)
     } catch {
-      alert(t.checkup.deleteError)
+      toast(t.checkup.deleteError)
       setDeleting(false)
     }
   }
@@ -90,7 +93,7 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
       onUpdate({ ...res.data, medications: savedMeds, attachments })
       setEditing(false)
     } catch (err) {
-      alert(err.response?.data?.error || t.checkup.saveError)
+      toast(err.response?.data?.error || t.checkup.saveError)
     } finally {
       setSaving(false)
     }
@@ -131,6 +134,14 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
               {checkup.vet_name && <><span>·</span><span>{t.checkup.doctor} {checkup.vet_name}</span></>}
               {checkup.clinic_name && <><span>·</span><span>{checkup.clinic_name}</span></>}
             </div>
+            {!open && (checkup.diagnosis || upcomingVisit) && (
+              <div className="r3">
+                {checkup.diagnosis && <span className="r3-dx"><span className="r3-k">{t.checkup.diagnosis}</span> {checkup.diagnosis}</span>}
+                {upcomingVisit && (
+                  <span className="status status-soon"><Calendar size={12} /> {t.checkup.nextVisit} {formatDate(checkup.next_visit_date, lang)} · {relativeDate(checkup.next_visit_date, lang)}</span>
+                )}
+              </div>
+            )}
           </div>
           <ChevronDown size={20} className="rec-chev" />
         </div>

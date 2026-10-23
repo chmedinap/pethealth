@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Plus, Pencil, Trash2, Syringe, AlertTriangle, Clock, CheckCircle2, Check, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Pencil, Trash2, Syringe, AlertTriangle, Clock, CheckCircle2, Check, X } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { createVaccine, updateVaccine, deleteVaccine } from '../api'
 import { formatDate, todayISO } from '../utils/format'
 import { vaccineStatus, latestDoseIds, COMMON_VACCINES } from '../utils/vaccines'
+import { useFeedback } from '../context/FeedbackContext'
 
 const EMPTY = { name: '', date_given: '', next_due_date: '', vet_name: '', batch_number: '', notes: '' }
 
@@ -76,11 +77,17 @@ function VaccineForm({ initial, species, onSave, onCancel, t }) {
   )
 }
 
-export default function VaccineList({ pet, vaccines, setVaccines, canEdit }) {
+export default function VaccineList({ pet, vaccines, setVaccines, canEdit, addRequest = 0 }) {
   const { t, lang } = useLanguage()
+  const { askConfirm, toast } = useFeedback()
   const tv = t.vaccines
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState(null)
+
+  // El botón «Registrar vacuna» vive en la cabecera de pestañas (PetProfile)
+  useEffect(() => {
+    if (addRequest > 0 && canEdit) { setAdding(true); setEditingId(null) }
+  }, [addRequest, canEdit])
 
   const sorted = [...vaccines].sort((a, b) => b.date_given.localeCompare(a.date_given) || b.id - a.id)
   const latest = latestDoseIds(vaccines)
@@ -98,12 +105,12 @@ export default function VaccineList({ pet, vaccines, setVaccines, canEdit }) {
   }
 
   async function handleDelete(v) {
-    if (!window.confirm(tv.deleteConfirm.replace('{name}', v.name))) return
+    if (!await askConfirm(tv.deleteConfirm.replace('{name}', v.name))) return
     try {
       await deleteVaccine(v.id)
       setVaccines(prev => prev.filter(x => x.id !== v.id))
     } catch {
-      alert(t.common.error500)
+      toast(t.common.error500)
     }
   }
 
@@ -111,11 +118,6 @@ export default function VaccineList({ pet, vaccines, setVaccines, canEdit }) {
 
   return (
     <div className="panel-card">
-      {canEdit && !adding && (
-        <button className="add-med" style={{ marginBottom: 12 }} onClick={() => { setAdding(true); setEditingId(null) }}>
-          <Plus size={18} strokeWidth={2.6} /> {tv.add}
-        </button>
-      )}
       {adding && (
         <VaccineForm initial={{ ...EMPTY, date_given: todayISO() }} species={pet.species} onSave={handleCreate} onCancel={() => setAdding(false)} t={t} />
       )}

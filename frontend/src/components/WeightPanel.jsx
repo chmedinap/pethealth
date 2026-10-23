@@ -1,19 +1,26 @@
-import { useState } from 'react'
-import { Plus, Trash2, Check, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Trash2, Check, X } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { createWeight, deleteWeight, getPet } from '../api'
 import { formatDate, todayISO } from '../utils/format'
 import LineChart from './LineChart'
+import { useFeedback } from '../context/FeedbackContext'
 
 const LOCALES = { es: 'es-ES', en: 'en-US' }
 
-export default function WeightPanel({ pet, weights, setWeights, canEdit, onPetUpdate }) {
+export default function WeightPanel({ pet, weights, setWeights, canEdit, onPetUpdate, addRequest = 0 }) {
   const { t, lang } = useLanguage()
+  const { askConfirm, toast } = useFeedback()
   const tw = t.weight
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState({ measured_on: todayISO(), weight_kg: '', notes: '' })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // El botón «Registrar peso» vive en la cabecera de pestañas (PetProfile)
+  useEffect(() => {
+    if (addRequest > 0 && canEdit) setAdding(true)
+  }, [addRequest, canEdit])
 
   const num = v => v.toLocaleString(LOCALES[lang] || LOCALES.es, { maximumFractionDigits: 2 })
   const latest = weights[weights.length - 1]
@@ -46,13 +53,13 @@ export default function WeightPanel({ pet, weights, setWeights, canEdit, onPetUp
   }
 
   async function handleDelete(w) {
-    if (!window.confirm(tw.deleteConfirm)) return
+    if (!await askConfirm(tw.deleteConfirm)) return
     try {
       await deleteWeight(w.id)
       setWeights(prev => prev.filter(x => x.id !== w.id))
       await refreshPet()
     } catch {
-      alert(t.common.error500)
+      toast(t.common.error500)
     }
   }
 
@@ -87,13 +94,8 @@ export default function WeightPanel({ pet, weights, setWeights, canEdit, onPetUp
         </>
       )}
 
-      {canEdit && !adding && (
-        <button className="add-med" style={{ margin: '14px 0 4px' }} onClick={() => setAdding(true)}>
-          <Plus size={18} strokeWidth={2.6} /> {tw.add}
-        </button>
-      )}
       {adding && (
-        <form className="inline-form" style={{ marginTop: 14 }} onSubmit={handleAdd}>
+        <form className="inline-form" style={{ marginTop: latest ? 14 : 0 }} onSubmit={handleAdd}>
           <div className="fgrid-3">
             <div className="field">
               <label>{tw.date}</label>

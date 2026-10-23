@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LanguageProvider } from './context/LanguageContext'
+import { FeedbackProvider } from './context/FeedbackContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import AddPet from './pages/AddPet'
@@ -44,9 +45,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
+        <FeedbackProvider>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </FeedbackProvider>
       </LanguageProvider>
     </ThemeProvider>
   )

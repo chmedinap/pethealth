@@ -1,49 +1,63 @@
 import { useNavigate } from 'react-router-dom'
-import { Stethoscope, Scale, ArrowRight, Users } from 'lucide-react'
+import { Stethoscope, Scale, ArrowRight, Users, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { calcAge, relativeDate } from '../utils/format'
 import { speciesMeta, speciesLabel } from '../utils/species'
 
-export default function PetCard({ pet, index = 0 }) {
+// Estado de salud de la mascota: el recordatorio más urgente (la API ya los ordena por fecha)
+function HealthPill({ reminder, t, lang }) {
+  if (!reminder) {
+    return <span className="status status-ok"><CheckCircle2 size={12} /> <span className="status-txt">{t.petCard.allGood}</span></span>
+  }
+  const kind = reminder.type === 'visit' ? t.reminders.visit : t.reminders.vaccine
+  if (reminder.status === 'overdue') {
+    return (
+      <span className="status status-overdue" title={`${kind}: ${reminder.title}`}>
+        <AlertTriangle size={12} /> <span className="status-txt">{t.reminders.overdue} · {reminder.title}</span>
+      </span>
+    )
+  }
+  return (
+    <span className="status status-soon" title={`${kind}: ${reminder.title}`}>
+      <Clock size={12} /> <span className="status-txt">{reminder.title} · {relativeDate(reminder.date, lang)}</span>
+    </span>
+  )
+}
+
+export default function PetCard({ pet, index = 0, reminder }) {
   const navigate = useNavigate()
   const { t, lang } = useLanguage()
 
   const meta = speciesMeta(pet.species)
-  const speciesEmoji = meta.emoji
-  const speciesCls = meta.badge
   const shared = pet.access && pet.access !== 'owner'
   const age = calcAge(pet.birth_date, t.common)
   const lastVisit = relativeDate(pet.last_checkup, lang)
+  const open = () => navigate(`/pets/${pet.id}`)
 
   return (
     <article
       className="petcard pc-portrait"
       style={{ animationDelay: `${index * 70}ms` }}
-      onClick={() => navigate(`/pets/${pet.id}`)}
+      onClick={open}
+      onKeyDown={e => { if (e.key === 'Enter') open() }}
+      tabIndex={0}
+      role="link"
+      aria-label={pet.name}
     >
-      {/* Photo */}
       <div style={{ position: 'relative' }}>
         {pet.photo_url ? (
-          <div style={{ height: 170, overflow: 'hidden', borderRadius: 0, position: 'relative' }}>
-            <img
-              src={pet.photo_url}
-              alt={pet.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
+          <div className="pc-photo">
+            <img src={pet.photo_url} alt={pet.name} />
           </div>
         ) : (
-          <div
-            className="photo"
-            style={{ height: 170, borderRadius: 0, '--tint': meta.tint }}
-          >
-            <span className="ph-emoji">{speciesEmoji}</span>
+          <div className="photo pc-photo" style={{ '--tint': meta.tint }}>
+            <span className="ph-emoji">{meta.emoji}</span>
           </div>
         )}
 
-        {/* Species badge top-left */}
         <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}>
-          <span className={`badge ${speciesCls}`}>
-            <span className="emoji">{speciesEmoji}</span>
+          <span className={`badge ${meta.badge}`}>
+            <span className="emoji">{meta.emoji}</span>
             {speciesLabel(pet.species, t)}
           </span>
         </div>
@@ -56,19 +70,12 @@ export default function PetCard({ pet, index = 0 }) {
         )}
       </div>
 
-      {/* Body */}
       <div className="pc-body">
-        <div className="pc-row" style={{ justifyContent: 'space-between' }}>
+        <div className="pc-row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
           <h3 className="pc-name t-h3">{pet.name}</h3>
-          <span className="badge badge-neutral">{age}</span>
+          <span className="pc-age">{age}</span>
         </div>
-
-        <div className="pc-meta">
-          {pet.breed || t.petCard.unknownBreed}
-          {pet.weight_kg != null && (
-            <span style={{ marginLeft: 6, color: 'var(--text-3)' }}>· {pet.weight_kg} {t.common.kg}</span>
-          )}
-        </div>
+        <div className="pc-meta">{pet.breed || t.petCard.unknownBreed}</div>
 
         <div className="pc-stats">
           <div className="pc-stat">
@@ -76,7 +83,7 @@ export default function PetCard({ pet, index = 0 }) {
             <div className="v">
               <Scale size={14} style={{ color: 'var(--text-3)' }} />
               {pet.weight_kg != null ? (
-                <>{pet.weight_kg}<span style={{ fontSize: 12, color: 'var(--text-3)' }}> {t.common.kg}</span></>
+                <>{pet.weight_kg.toLocaleString(lang === 'en' ? 'en-US' : 'es-ES')}<span style={{ fontSize: 12, color: 'var(--text-3)' }}> {t.common.kg}</span></>
               ) : '—'}
             </div>
           </div>
@@ -90,11 +97,8 @@ export default function PetCard({ pet, index = 0 }) {
         </div>
 
         <div className="pc-foot">
-          <span className="pc-next">
-            <Stethoscope size={14} />
-            {pet.last_checkup ? lastVisit : <em style={{ fontStyle: 'italic' }}>{t.petCard.noVisits}</em>}
-          </span>
-          <ArrowRight size={18} style={{ color: 'var(--text-3)' }} />
+          <HealthPill reminder={reminder} t={t} lang={lang} />
+          <ArrowRight size={18} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
         </div>
       </div>
     </article>

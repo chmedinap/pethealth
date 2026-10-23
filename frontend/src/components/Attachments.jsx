@@ -1,18 +1,20 @@
 import { useRef, useState } from 'react'
 import { Paperclip, X } from 'lucide-react'
 import { deleteAttachment } from '../api'
+import { useFeedback } from '../context/FeedbackContext'
 
 const MAX_ATTACHMENTS = 3
 
 // `labels` es t.checkup o t.exam: ambos tienen las mismas claves de adjuntos.
 export default function Attachments({ attachments, setAttachments, upload, labels, canEdit = true }) {
   const fileInputRef = useRef(null)
+  const { askConfirm, toast } = useFeedback()
   const [uploading, setUploading] = useState(false)
 
   async function handleUpload(e) {
     const file = e.target.files[0]
     if (!file) return
-    if (attachments.length >= MAX_ATTACHMENTS) { alert(labels.maxFiles); return }
+    if (attachments.length >= MAX_ATTACHMENTS) { toast(labels.maxFiles); return }
     setUploading(true)
     try {
       const fd = new FormData()
@@ -20,7 +22,7 @@ export default function Attachments({ attachments, setAttachments, upload, label
       const res = await upload(fd)
       setAttachments(prev => [...prev, res.data])
     } catch (err) {
-      alert(err.response?.data?.error || labels.uploadError)
+      toast(err.response?.data?.error || labels.uploadError)
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -28,12 +30,12 @@ export default function Attachments({ attachments, setAttachments, upload, label
   }
 
   async function handleDelete(attId) {
-    if (!window.confirm(labels.deleteFileConfirm)) return
+    if (!await askConfirm(labels.deleteFileConfirm)) return
     try {
       await deleteAttachment(attId)
       setAttachments(prev => prev.filter(a => a.id !== attId))
     } catch {
-      alert(labels.deleteFileError)
+      toast(labels.deleteFileError)
     }
   }
 

@@ -5,7 +5,8 @@ import Navbar from '../components/Navbar'
 import PetCard from '../components/PetCard'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
-import { getPets } from '../api'
+import { getPets, getReminders } from '../api'
+import { todayISO } from '../utils/format'
 import RemindersPanel from '../components/RemindersPanel'
 import { SPECIES, speciesMeta, speciesLabel } from '../utils/species'
 
@@ -42,13 +43,20 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [reminders, setReminders] = useState(null)
 
   useEffect(() => {
     getPets()
       .then(res => setPets(res.data))
       .catch(() => setError(t.dashboard.loadError))
       .finally(() => setLoading(false))
+    getReminders(todayISO(), 30).then(res => setReminders(res.data)).catch(() => {})
   }, [])
+
+  // Recordatorio más urgente por mascota (la API los devuelve ordenados por fecha)
+  const nextByPet = {}
+  for (const r of reminders?.due || []) if (!nextByPet[r.pet_id]) nextByPet[r.pet_id] = r
+  const overdueTotal = (reminders?.due || []).filter(r => r.status === 'overdue').length
 
   const counts = { all: pets.length }
   for (const p of pets) counts[p.species] = (counts[p.species] || 0) + 1
@@ -80,7 +88,10 @@ export default function Dashboard() {
               {loading ? t.common.loading : (
                 counts.all === 0
                   ? t.dashboard.emptySub
-                  : (counts.all === 1 ? t.dashboard.underCareOne : t.dashboard.underCareMany).replace('{n}', counts.all)
+                  : <>
+                      {(counts.all === 1 ? t.dashboard.underCareOne : t.dashboard.underCareMany).replace('{n}', counts.all)}
+                      {overdueTotal > 0 && <> · <strong className="dash-alert">{(overdueTotal === 1 ? t.dashboard.overdueOne : t.dashboard.overdueMany).replace('{n}', overdueTotal)}</strong></>}
+                    </>
               )}
             </p>
           </div>
@@ -96,20 +107,21 @@ export default function Dashboard() {
               {search && (
                 <button
                   onClick={() => setSearch('')}
+                  aria-label={t.common.close}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex', alignItems: 'center', padding: 0 }}
                 >
                   <X size={15} />
                 </button>
               )}
             </div>
-            <button className="btn btn-primary" onClick={() => navigate('/pets/new')}>
+            <button className="btn btn-primary dash-add" onClick={() => navigate('/pets/new')}>
               <Plus size={18} strokeWidth={2.6} />
               {t.dashboard.addBtn}
             </button>
           </div>
         </div>
 
-        {!loading && !error && pets.length > 0 && <RemindersPanel />}
+        {!loading && !error && pets.length > 0 && <RemindersPanel data={reminders} />}
 
         {/* Filter chips */}
         {!loading && !error && pets.length > 0 && chips.length > 2 && (
@@ -144,7 +156,7 @@ export default function Dashboard() {
           </div>
         ) : !error ? (
           <div className="cards cards--portrait">
-            {filtered.map((pet, i) => <PetCard key={pet.id} pet={pet} index={i} />)}
+            {filtered.map((pet, i) => <PetCard key={pet.id} pet={pet} index={i} reminder={nextByPet[pet.id]} />)}
           </div>
         ) : null}
       </main>

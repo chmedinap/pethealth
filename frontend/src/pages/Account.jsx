@@ -6,12 +6,14 @@ import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import { getMe, changePassword, revokeOtherSessions } from '../api'
 import { formatDate } from '../utils/format'
+import { useFeedback } from '../context/FeedbackContext'
 
 const MIN_PASSWORD = 8
 
 export default function Account() {
   const navigate = useNavigate()
   const { t, lang } = useLanguage()
+  const { askConfirm } = useFeedback()
   const [me, setMe] = useState(null)
   const [form, setForm] = useState({ current: '', next: '', confirm: '' })
   const [error, setError] = useState('')
@@ -51,7 +53,7 @@ export default function Account() {
   }
 
   async function handleRevoke() {
-    if (!window.confirm(t.account.revokeConfirm)) return
+    if (!await askConfirm(t.account.revokeConfirm)) return
     try {
       const res = await revokeOtherSessions()
       login(res.data)

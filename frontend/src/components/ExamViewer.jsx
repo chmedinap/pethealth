@@ -8,6 +8,7 @@ import {
 import { formatDate } from '../utils/format'
 import Attachments from './Attachments'
 import { normalizeParam } from '../utils/labs'
+import { useFeedback } from '../context/FeedbackContext'
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-3)', border: '1.5px solid var(--border-2)',
@@ -107,6 +108,7 @@ function ExamValuesEditor({ values, onChange, errors, t }) {
 
 export default function ExamViewer({ exam, index = 0, canEdit = true, paramCounts = {}, onShowTrend, onDelete, onUpdate }) {
   const { t, lang } = useLanguage()
+  const { askConfirm, toast } = useFeedback()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -127,13 +129,13 @@ export default function ExamViewer({ exam, index = 0, canEdit = true, paramCount
   }
 
   async function handleDelete() {
-    if (!window.confirm(t.exam.deleteConfirm)) return
+    if (!await askConfirm(t.exam.deleteConfirm)) return
     setDeleting(true)
     try {
       await deleteExam(exam.id)
       onDelete(exam.id)
     } catch {
-      alert(t.exam.deleteError)
+      toast(t.exam.deleteError)
       setDeleting(false)
     }
   }
@@ -155,7 +157,7 @@ export default function ExamViewer({ exam, index = 0, canEdit = true, paramCount
       onUpdate({ ...res.data, exam_values: savedValues, attachments })
       setEditing(false)
     } catch (err) {
-      alert(err.response?.data?.error || t.exam.saveError)
+      toast(err.response?.data?.error || t.exam.saveError)
     } finally {
       setSaving(false)
     }

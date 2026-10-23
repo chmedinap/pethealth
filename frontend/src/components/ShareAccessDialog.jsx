@@ -3,9 +3,11 @@ import { UserPlus, Trash2 } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { getPetShares, sharePet, removePetShare } from '../api'
 import Modal from './Modal'
+import { useFeedback } from '../context/FeedbackContext'
 
 export default function ShareAccessDialog({ pet, onClose }) {
   const { t } = useLanguage()
+  const { askConfirm } = useFeedback()
   const ts = t.share
   const [shares, setShares] = useState([])
   const [loading, setLoading] = useState(true)
@@ -44,7 +46,7 @@ export default function ShareAccessDialog({ pet, onClose }) {
   }
 
   async function handleRemove(share) {
-    if (!window.confirm(ts.removeConfirm.replace('{user}', share.username))) return
+    if (!await askConfirm(ts.removeConfirm.replace('{user}', share.username))) return
     try {
       const res = await removePetShare(pet.id, share.user_id)
       setShares(res.data)
