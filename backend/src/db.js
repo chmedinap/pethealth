@@ -1,10 +1,11 @@
 const Database = require('better-sqlite3')
 const bcrypt = require('bcryptjs')
 const fs = require('fs')
+const { DATA_DIR, DB_PATH } = require('./config')
 
-fs.mkdirSync('/app/data', { recursive: true })
+fs.mkdirSync(DATA_DIR, { recursive: true })
 
-const db = new Database('/app/data/pethealth.db')
+const db = new Database(DB_PATH)
 
 db.pragma('journal_mode = WAL')
 db.pragma('foreign_keys = ON')
@@ -19,6 +20,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS pets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     species TEXT CHECK(species IN ('cat', 'dog')) NOT NULL,
     breed TEXT,
@@ -86,6 +88,41 @@ db.exec(`
   );
 `)
 
+// ── Migración: mascotas por usuario ──────────────────────────────────────────
+// Bases creadas antes de esta versión no tienen pets.user_id; las mascotas
+// existentes se asignan al primer usuario (el admin original).
+const petColumns = db.prepare('PRAGMA table_info(pets)').all()
+if (!petColumns.some(c => c.name === 'user_id')) {
+  db.exec('ALTER TABLE pets ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE')
+  db.exec('UPDATE pets SET user_id = (SELECT MIN(id) FROM users)')
+  console.log('🔄 Migración: mascotas existentes asignadas al primer usuario')
+}
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pets_user ON pets(user_id);
+  CREATE INDEX IF NOT EXISTS idx_checkups_pet ON checkups(pet_id);
+  CREATE INDEX IF NOT EXISTS idx_exams_pet ON exams(pet_id);
+  CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id);
+
+  -- attachments es polimórfica (sin FK), así que sus filas se limpian con triggers.
+  -- Los triggers también se disparan con los ON DELETE CASCADE desde pets.
+  CREATE TRIGGER IF NOT EXISTS trg_checkup_attachments AFTER DELETE ON checkups
+  BEGIN
+    DELETE FROM attachments WHERE entity_type = 'checkup' AND entity_id = OLD.id;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_exam_attachments AFTER DELETE ON exams
+  BEGIN
+    DELETE FROM attachments WHERE entity_type = 'exam' AND entity_id = OLD.id;
+  END;
+`)
+
+// Limpia filas huérfanas que hayan quedado de versiones anteriores
+db.exec(`
+  DELETE FROM attachments WHERE entity_type = 'checkup' AND entity_id NOT IN (SELECT id FROM checkups);
+  DELETE FROM attachments WHERE entity_type = 'exam' AND entity_id NOT IN (SELECT id FROM exams);
+`)
+
 const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get()
 if (userCount.count === 0) {
   const passwordHash = bcrypt.hashSync('admin123', 10)
@@ -95,14 +132,16 @@ if (userCount.count === 0) {
 
 // ── Mascota de demostración ───────────────────────────────────────────────────
 const petCount = db.prepare('SELECT COUNT(*) as count FROM pets').get()
-if (petCount.count === 0) {
+if (petCount.count === 0 && userCount.count === 0) {
+  const adminId = db.prepare("SELECT id FROM users WHERE username = 'admin'").get().id
   db.transaction(() => {
 
     // Mascota
     const pet = db.prepare(`
-      INSERT INTO pets (name, species, breed, birth_date, gender, weight_kg, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO pets (user_id, name, species, breed, birth_date, gender, weight_kg, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
+      adminId,
       'Milo',
       'dog',
       'Golden Retriever',

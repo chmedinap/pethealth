@@ -8,10 +8,12 @@ import AddPet from './pages/AddPet'
 import PetProfile from './pages/PetProfile'
 import AddCheckup from './pages/AddCheckup'
 import AddExam from './pages/AddExam'
+import Account from './pages/Account'
 
 function PrivateRoute() {
-  const { isAuthenticated } = useAuth()
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />
+  const { isAuthenticated, sessionReady } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  return sessionReady ? <Outlet /> : null
 }
 
 function AppRoutes() {
@@ -25,7 +27,9 @@ function AppRoutes() {
         <Route path="/pets/:id/edit" element={<AddPet />} />
         <Route path="/pets/:id/checkups/new" element={<AddCheckup />} />
         <Route path="/pets/:id/exams/new" element={<AddExam />} />
+        <Route path="/account" element={<Account />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

@@ -15,7 +15,10 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   response => response,
   error => {
-    if (error.response?.status === 401) {
+    // Un 401 en login/registro es "credenciales incorrectas", no una sesión expirada:
+    // se deja pasar para que la pantalla muestre el error en lugar de recargar.
+    const isAuthRequest = error.config?.url?.startsWith('/auth/')
+    if (error.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'
@@ -25,8 +28,15 @@ api.interceptors.response.use(
 )
 
 // Auth
+export const getAuthConfig = () => api.get('/auth/config')
 export const loginUser = (data) => api.post('/auth/login', data)
 export const registerUser = (data) => api.post('/auth/register', data)
+export const refreshSession = () => api.post('/auth/refresh')
+export const logoutUser = () => api.post('/auth/logout')
+
+// Users
+export const getMe = () => api.get('/users/me')
+export const changePassword = (data) => api.put('/users/me/password', data)
 
 // Pets
 export const getPets = () => api.get('/pets')
@@ -39,7 +49,13 @@ export const uploadPetPhoto = (id, formData) => api.post(`/pets/${id}/photo`, fo
 // Checkups
 export const getPetCheckups = (petId) => api.get(`/pets/${petId}/checkups`)
 export const createCheckup = (petId, data) => api.post(`/pets/${petId}/checkups`, data)
+export const updateCheckup = (id, data) => api.put(`/checkups/${id}`, data)
 export const deleteCheckup = (id) => api.delete(`/checkups/${id}`)
+
+// Medications
+export const createMedication = (checkupId, data) => api.post(`/checkups/${checkupId}/medications`, data)
+export const updateMedication = (id, data) => api.put(`/medications/${id}`, data)
+export const deleteMedication = (id) => api.delete(`/medications/${id}`)
 
 // Exams
 export const getPetExams = (petId) => api.get(`/pets/${petId}/exams`)
@@ -47,8 +63,10 @@ export const createExam = (petId, formData) => api.post(`/pets/${petId}/exams`, 
 export const updateExam = (id, data) => api.put(`/exams/${id}`, data)
 export const deleteExam = (id) => api.delete(`/exams/${id}`)
 
-// Checkup edit
-export const updateCheckup = (id, data) => api.put(`/checkups/${id}`, data)
+// Exam values
+export const createExamValues = (examId, values) => api.post(`/exams/${examId}/values`, values)
+export const updateExamValue = (id, data) => api.put(`/exam-values/${id}`, data)
+export const deleteExamValue = (id) => api.delete(`/exam-values/${id}`)
 
 // Attachments
 export const uploadCheckupAttachment = (id, formData) => api.post(`/checkups/${id}/attachments`, formData)

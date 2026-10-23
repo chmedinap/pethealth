@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useLanguage } from '../context/LanguageContext'
-import { loginUser } from '../api'
+import { getAuthConfig, loginUser, registerUser } from '../api'
 
 export default function Login() {
   const { isAuthenticated, login } = useAuth()
@@ -15,15 +15,27 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [allowRegistration, setAllowRegistration] = useState(false)
+  const [mode, setMode] = useState('login')
+  const isRegister = mode === 'register'
+
+  useEffect(() => {
+    getAuthConfig().then(res => setAllowRegistration(res.data.allowRegistration)).catch(() => {})
+  }, [])
 
   if (isAuthenticated) return <Navigate to="/" replace />
+
+  function switchMode() {
+    setMode(isRegister ? 'login' : 'register')
+    setError('')
+  }
 
   async function handleLogin() {
     if (!username || !password) { setError(t.login.fillAll); return }
     setError('')
     setLoading(true)
     try {
-      const { data } = await loginUser({ username, password })
+      const { data } = await (isRegister ? registerUser : loginUser)({ username, password })
       login({ token: data.token, user: data.user })
       navigate('/')
     } catch (err) {
@@ -126,7 +138,10 @@ export default function Login() {
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
                 {t.login.password}
               </label>
-              <input className="login-input" type="password" placeholder={t.login.passwordPlaceholder} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={handleKeyDown} autoComplete="current-password" />
+              <input className="login-input" type="password" placeholder={t.login.passwordPlaceholder} value={password} onChange={e => setPassword(e.target.value)} onKeyDown={handleKeyDown} autoComplete={isRegister ? 'new-password' : 'current-password'} />
+              {isRegister && (
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t.login.passwordHint}</p>
+              )}
             </div>
           </div>
 
@@ -143,8 +158,19 @@ export default function Login() {
             onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--color-primary-hover)' }}
             onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--color-primary)' }}
           >
-            {loading ? t.login.submitting : t.login.submit}
+            {isRegister
+              ? (loading ? t.login.registering : t.login.registerSubmit)
+              : (loading ? t.login.submitting : t.login.submit)}
           </button>
+
+          {allowRegistration && (
+            <button
+              onClick={switchMode}
+              style={{ marginTop: '1rem', width: '100%', background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 700, fontSize: '0.875rem', fontFamily: 'Nunito, sans-serif', cursor: 'pointer' }}
+            >
+              {isRegister ? t.login.toLogin : t.login.toRegister}
+            </button>
+          )}
         </div>
       </div>
     </>

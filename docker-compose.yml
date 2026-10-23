@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -12,6 +10,8 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - JWT_SECRET=cambiar_esto_en_produccion_por_una_clave_segura
-      - NODE_ENV=production
-      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:?Define JWT_SECRET en .env (openssl rand -hex 32)}
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=${PORT:-3001}
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - TRUST_PROXY=${TRUST_PROXY:-false}

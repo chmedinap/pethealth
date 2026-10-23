@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.DS_Store
+
+# Datos persistentes (base de datos y archivos subidos)
+data/*
+!data/.gitkeep
+backend/data/

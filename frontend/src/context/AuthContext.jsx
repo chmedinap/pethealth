@@ -1,5 +1,6 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { logoutUser, refreshSession } from '../api'
 
 const AuthContext = createContext(null)
 
@@ -9,6 +10,7 @@ export function AuthProvider({ children }) {
     return stored ? JSON.parse(stored) : null
   })
   const [token, setToken] = useState(() => localStorage.getItem('token') || null)
+  const [sessionReady, setSessionReady] = useState(() => !localStorage.getItem('token'))
   const navigate = useNavigate()
 
   function login({ token, user }) {
@@ -18,7 +20,18 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(user))
   }
 
+  // Al abrir la app con una sesión guardada se renueva el token y la cookie
+  // httpOnly que usan las fotos y archivos (sesiones previas no la tenían).
+  useEffect(() => {
+    if (!token) return
+    refreshSession()
+      .then(res => login(res.data))
+      .catch(() => {})
+      .finally(() => setSessionReady(true))
+  }, [])
+
   function logout() {
+    logoutUser().catch(() => {})
     setToken(null)
     setUser(null)
     localStorage.removeItem('token')
@@ -27,7 +40,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, login, logout, sessionReady, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   )

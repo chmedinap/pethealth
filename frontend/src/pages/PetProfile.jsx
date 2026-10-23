@@ -6,24 +6,44 @@ import CheckupCard from '../components/CheckupCard'
 import ExamViewer from '../components/ExamViewer'
 import { useLanguage } from '../context/LanguageContext'
 import { getPet, getPetCheckups, getPetExams, deletePet, uploadPetPhoto } from '../api'
+import { calcAge, copyText, formatDate, todayISO } from '../utils/format'
 
-function calcAge(birthDate, tc) {
-  if (!birthDate) return tc.unknownAge
-  const birth = new Date(birthDate)
-  const now = new Date()
-  let years = now.getFullYear() - birth.getFullYear()
-  let months = now.getMonth() - birth.getMonth()
-  if (months < 0) { years--; months += 12 }
-  if (years < 0 || (years === 0 && months < 0)) return tc.unknownAge
-  if (years === 0) return `${months} ${months === 1 ? tc.month : tc.months}`
-  if (months === 0) return `${years} ${years === 1 ? tc.year : tc.years}`
-  return `${years} ${years === 1 ? tc.year : tc.years} ${tc.and} ${months} ${months === 1 ? tc.month : tc.months}`
-}
+// Resumen en texto plano para compartir con el veterinario o la familia
+function buildSummary(pet, checkups, exams, t, lang) {
+  const tp = t.profile
+  const lines = [tp.summaryTitle.replace('{name}', pet.name)]
+  const basics = [
+    pet.species === 'cat' ? t.common.cat : t.common.dog,
+    pet.breed,
+    calcAge(pet.birth_date, t.common),
+    pet.weight_kg != null ? `${pet.weight_kg} ${t.common.kg}` : null,
+  ].filter(Boolean)
+  lines.push(basics.join(' · '))
 
-function formatDate(dateStr) {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const last = checkups[0]
+  if (last) lines.push('', `${tp.lastCheckup}: ${formatDate(last.checkup_date, lang)} — ${last.reason}`)
+
+  const today = todayISO()
+  const upcoming = checkups.map(c => c.next_visit_date).filter(d => d && d >= today).sort()[0]
+  if (upcoming) lines.push(`${tp.summaryNextVisit}: ${formatDate(upcoming, lang)}`)
+
+  if (last?.medications?.length) {
+    lines.push('', `${tp.summaryRecentMeds}:`)
+    for (const m of last.medications) {
+      lines.push(`• ${m.name}${m.concentration ? ` (${m.concentration})` : ''} — ${m.frequency}`)
+    }
+  }
+
+  const abnormal = (exams[0]?.exam_values || []).filter(v => v.is_abnormal)
+  if (abnormal.length) {
+    lines.push('', `${tp.summaryAbnormal}:`)
+    for (const v of abnormal) {
+      lines.push(`• ${v.parameter_name}: ${v.value}${v.unit ? ` ${v.unit}` : ''}${v.reference_range ? ` (ref. ${v.reference_range})` : ''}`)
+    }
+  }
+
+  if (pet.notes) lines.push('', `${tp.notes}: ${pet.notes}`)
+  return lines.join('\n')
 }
 
 function Vital({ icon: Icon, label, value, unit }) {
@@ -42,7 +62,7 @@ export default function PetProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const [tab, setTab] = useState('checkups')
 
   const [pet, setPet] = useState(null)
@@ -87,6 +107,20 @@ export default function PetProfile() {
     }
   }
 
+  async function handleShare() {
+    const text = buildSummary(pet, checkups, exams, t, lang)
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: t.profile.summaryTitle.replace('{name}', pet.name), text })
+      } else {
+        await copyText(text)
+        alert(t.profile.shareCopied)
+      }
+    } catch (err) {
+      if (err?.name !== 'AbortError') alert(t.profile.shareError)
+    }
+  }
+
   async function handleDelete() {
     if (!window.confirm(t.profile.deleteConfirm.replace('{name}', pet.name))) return
     try {
@@ -120,7 +154,7 @@ export default function PetProfile() {
         <div className="screen">
           <button className="back-btn" onClick={() => navigate('/')}>
             <ArrowLeft size={18} strokeWidth={2.4} />
-            {t.dashboard?.title || 'Mis mascotas'}
+            {t.dashboard.title}
           </button>
 
           <div className="profile-grid">
@@ -164,13 +198,13 @@ export default function PetProfile() {
                   <div className="vitals">
                     <Vital icon={Cake} label={t.profile.age} value={calcAge(pet.birth_date, t.common)} />
                     <Vital icon={Scale} label={t.profile.weight} value={pet.weight_kg || '—'} unit={pet.weight_kg ? t.common.kg : null} />
-                    <Vital icon={Stethoscope} label={t.profile.lastCheckup} value={checkups[0] ? formatDate(checkups[0].checkup_date) : '—'} />
-                    <Vital icon={Syringe} label={t.profile.registered || 'Registrado'} value={formatDate(pet.created_at) || '—'} />
+                    <Vital icon={Stethoscope} label={t.profile.lastCheckup} value={checkups[0] ? formatDate(checkups[0].checkup_date, lang) : '—'} />
+                    <Vital icon={Syringe} label={t.profile.registered} value={formatDate(pet.created_at, lang) || '—'} />
                   </div>
 
                   {pet.notes && (
                     <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-md)', padding: '13px 15px', marginBottom: 16 }}>
-                      <div className="t-label muted-3" style={{ marginBottom: 6 }}>📝 {t.profile.notes || 'Notas'}</div>
+                      <div className="t-label muted-3" style={{ marginBottom: 6 }}>📝 {t.profile.notes}</div>
                       <p className="t-bodysm muted" style={{ margin: 0 }}>{pet.notes}</p>
                     </div>
                   )}
@@ -191,7 +225,7 @@ export default function PetProfile() {
                     <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => navigate(`/pets/${id}/edit`)}>
                       <Pencil size={16} /> {t.profile.editBtn}
                     </button>
-                    <button className="icon-btn" onClick={() => {}} title="Compartir"><Share2 size={18} /></button>
+                    <button className="icon-btn" onClick={handleShare} title={t.profile.share} aria-label={t.profile.share}><Share2 size={18} /></button>
                     <button className="btn btn-danger btn-sm" onClick={handleDelete}>{t.profile.deleteBtn}</button>
                   </div>
                 </div>
@@ -204,12 +238,12 @@ export default function PetProfile() {
                 <div className="tabs">
                   <button className="tab" data-on={tab === 'checkups' ? '1' : '0'} onClick={() => setTab('checkups')}>
                     <Stethoscope size={16} />
-                    {t.profile.checkupsTitle || 'Consultas'}
+                    {t.profile.checkupsTitle}
                     <span className="pill-n">{checkups.length}</span>
                   </button>
                   <button className="tab" data-on={tab === 'exams' ? '1' : '0'} onClick={() => setTab('exams')}>
                     <FlaskConical size={16} />
-                    {t.profile.examsTitle || 'Exámenes'}
+                    {t.profile.examsTitle}
                     <span className="pill-n">{exams.length}</span>
                   </button>
                 </div>
@@ -219,7 +253,7 @@ export default function PetProfile() {
                   onClick={() => navigate(`/pets/${id}/${tab === 'checkups' ? 'checkups' : 'exams'}/new`)}
                 >
                   <Plus size={16} strokeWidth={2.6} />
-                  {tab === 'checkups' ? (t.profile.newCheckup || 'Nueva consulta') : (t.profile.newExam || 'Nuevo examen')}
+                  {tab === 'checkups' ? t.profile.newCheckup : t.profile.newExam}
                 </button>
               </div>
 
@@ -239,12 +273,12 @@ export default function PetProfile() {
                 ) : (
                   <div className="section-empty">
                     <span className="se-emoji">🩺</span>
-                    <h3 className="t-h3" style={{ margin: '0 0 6px' }}>{t.profile.noCheckups || 'Sin consultas aún'}</h3>
+                    <h3 className="t-h3" style={{ margin: '0 0 6px' }}>{t.profile.noCheckups}</h3>
                     <p className="t-bodysm" style={{ margin: '0 0 16px' }}>
-                      Registra las visitas al veterinario de {pet.name} para construir su historial.
+                      {t.profile.noCheckupsSub.replace('{name}', pet.name)}
                     </p>
                     <button className="btn btn-primary btn-sm" onClick={() => navigate(`/pets/${id}/checkups/new`)}>
-                      <Plus size={16} /> {t.profile.newCheckup || 'Registrar primera consulta'}
+                      <Plus size={16} /> {t.profile.firstCheckup}
                     </button>
                   </div>
                 )
@@ -264,12 +298,12 @@ export default function PetProfile() {
                 ) : (
                   <div className="section-empty">
                     <span className="se-emoji">🔬</span>
-                    <h3 className="t-h3" style={{ margin: '0 0 6px' }}>{t.profile.noExams || 'Sin exámenes aún'}</h3>
+                    <h3 className="t-h3" style={{ margin: '0 0 6px' }}>{t.profile.noExams}</h3>
                     <p className="t-bodysm" style={{ margin: '0 0 16px' }}>
-                      Sube resultados de laboratorio e imágenes para tenerlo todo en un lugar.
+                      {t.profile.noExamsSub}
                     </p>
                     <button className="btn btn-primary btn-sm" onClick={() => navigate(`/pets/${id}/exams/new`)}>
-                      <Plus size={16} /> {t.profile.newExam || 'Agregar primer examen'}
+                      <Plus size={16} /> {t.profile.firstExam}
                     </button>
                   </div>
                 )

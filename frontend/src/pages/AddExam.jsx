@@ -3,8 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import { useLanguage } from '../context/LanguageContext'
 import { createExam, getPetCheckups } from '../api'
-
-const today = new Date().toISOString().slice(0, 10)
+import { formatDate, todayISO } from '../utils/format'
 const inputStyle = { width: '100%', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '10px 14px', fontSize: '0.92rem', color: 'var(--text-primary)', fontFamily: 'Nunito, sans-serif', outline: 'none', boxSizing: 'border-box' }
 const cellInputStyle = { width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '0.83rem', color: 'var(--text-primary)', fontFamily: 'Nunito, sans-serif', padding: '4px 6px', boxSizing: 'border-box' }
 
@@ -22,19 +21,14 @@ function Field({ label, required, error, children }) {
 
 function emptyValue() { return { parameter_name: '', value: '', unit: '', reference_range: '', is_abnormal: false } }
 
-function formatDateLabel(dateStr, reason) {
-  if (!dateStr) return reason
-  const [y, m, d] = dateStr.split('-')
-  return `${d}/${m}/${y} — ${reason}`
-}
 
 export default function AddExam() {
   const { id: petId } = useParams()
   const navigate = useNavigate()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const pdfInputRef = useRef(null)
 
-  const [form, setForm] = useState({ exam_type: '', exam_date: today, lab_name: '', checkup_id: '', notes: '' })
+  const [form, setForm] = useState({ exam_type: '', exam_date: todayISO(), lab_name: '', checkup_id: '', notes: '' })
   const [pdfFile, setPdfFile] = useState(null)
   const [values, setValues] = useState([])
   const [checkups, setCheckups] = useState([])
@@ -121,7 +115,7 @@ export default function AddExam() {
             <Field label={t.addExam.checkupAssoc}>
               <select className="ex-input" style={inputStyle} value={form.checkup_id} onChange={e => set('checkup_id', e.target.value)}>
                 <option value="">{t.addExam.noCheckup}</option>
-                {checkups.map(c => <option key={c.id} value={c.id}>{formatDateLabel(c.checkup_date, c.reason)}</option>)}
+                {checkups.map(c => <option key={c.id} value={c.id}>{`${formatDate(c.checkup_date, lang)} — ${c.reason}`}</option>)}
               </select>
             </Field>
 
@@ -150,7 +144,7 @@ export default function AddExam() {
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>{t.addExam.valuesTitle}</h3>
-                <button onClick={addValue} style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: '0.82rem' }}>{t.addExam.valuesAdd}</button>
+                <button onClick={addValue} style={{ background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontFamily: 'Nunito, sans-serif', fontWeight: 700, fontSize: '0.82rem' }}>＋ {t.addExam.valuesAdd}</button>
               </div>
 
               {values.length === 0 ? (
@@ -170,11 +164,11 @@ export default function AddExam() {
                         {values.map((v, i) => (
                           <tr key={i} style={{ borderTop: '1px solid var(--border-color)', background: v.is_abnormal ? 'color-mix(in srgb, var(--color-danger) 6%, transparent)' : 'transparent' }}>
                             <td style={{ padding: '4px' }}>
-                              <input className="ex-cell-input" style={cellInputStyle} type="text" placeholder="Parámetro" value={v.parameter_name} onChange={e => setVal(i, 'parameter_name', e.target.value)} />
+                              <input className="ex-cell-input" style={cellInputStyle} type="text" placeholder={t.addExam.paramPlaceholder} value={v.parameter_name} onChange={e => setVal(i, 'parameter_name', e.target.value)} />
                               {errors[`val_param_${i}`] && <p style={{ margin: '2px 0 0 6px', fontSize: '0.7rem', color: 'var(--color-danger)' }}>{errors[`val_param_${i}`]}</p>}
                             </td>
                             <td style={{ padding: '4px' }}>
-                              <input className="ex-cell-input" style={cellInputStyle} type="text" placeholder="Valor" value={v.value} onChange={e => setVal(i, 'value', e.target.value)} />
+                              <input className="ex-cell-input" style={cellInputStyle} type="text" placeholder={t.addExam.valuePlaceholder} value={v.value} onChange={e => setVal(i, 'value', e.target.value)} />
                               {errors[`val_value_${i}`] && <p style={{ margin: '2px 0 0 6px', fontSize: '0.7rem', color: 'var(--color-danger)' }}>{errors[`val_value_${i}`]}</p>}
                             </td>
                             <td style={{ padding: '4px' }}><input className="ex-cell-input" style={cellInputStyle} type="text" placeholder="mg/dL" value={v.unit} onChange={e => setVal(i, 'unit', e.target.value)} /></td>

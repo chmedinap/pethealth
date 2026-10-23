@@ -24,11 +24,11 @@ function SkeletonCard() {
   )
 }
 
-function greeting() {
+function greeting(td) {
   const h = new Date().getHours()
-  if (h < 12) return 'Buenos días'
-  if (h < 18) return 'Buenas tardes'
-  return 'Buenas noches'
+  if (h < 12) return td.greetingMorning
+  if (h < 18) return td.greetingAfternoon
+  return td.greetingEvening
 }
 
 export default function Dashboard() {
@@ -61,9 +61,9 @@ export default function Dashboard() {
   })
 
   const chips = [
-    { k: 'all', label: t.dashboard?.filterAll || 'Todos', emoji: '🐾' },
-    { k: 'dog', label: t.common.dog || 'Perros', emoji: '🐶' },
-    { k: 'cat', label: t.common.cat || 'Gatos', emoji: '🐱' },
+    { k: 'all', label: t.dashboard.filterAll, emoji: '🐾' },
+    { k: 'dog', label: t.dashboard.filterDogs, emoji: '🐶' },
+    { k: 'cat', label: t.dashboard.filterCats, emoji: '🐱' },
   ]
 
   return (
@@ -75,13 +75,13 @@ export default function Dashboard() {
         <div className="dash-head">
           <div className="dash-greet">
             <h1 className="t-h1">
-              {greeting()}, {user?.username} 🌿
+              {greeting(t.dashboard)}, {user?.username} 🌿
             </h1>
             <p className="muted t-body dash-sub">
               {loading ? t.common.loading : (
                 counts.all === 0
-                  ? (t.dashboard.emptySub || 'Aún no tienes mascotas registradas')
-                  : `${counts.all} ${counts.all === 1 ? (t.dashboard.countOne || 'mascota') : (t.dashboard.countMany || 'mascotas')} bajo tu cuidado`
+                  ? t.dashboard.emptySub
+                  : (counts.all === 1 ? t.dashboard.underCareOne : t.dashboard.underCareMany).replace('{n}', counts.all)
               )}
             </p>
           </div>
@@ -92,7 +92,7 @@ export default function Dashboard() {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder={t.dashboard.search || 'Buscar por nombre o raza…'}
+                placeholder={t.dashboard.search}
               />
               {search && (
                 <button
@@ -105,7 +105,7 @@ export default function Dashboard() {
             </div>
             <button className="btn btn-primary" onClick={() => navigate('/pets/new')}>
               <Plus size={18} strokeWidth={2.6} />
-              {t.dashboard?.addBtn || 'Agregar mascota'}
+              {t.dashboard.addBtn}
             </button>
           </div>
         </div>
@@ -138,8 +138,8 @@ export default function Dashboard() {
         ) : !error && filtered.length === 0 ? (
           <div className="empty">
             <div className="empty-art">🔍</div>
-            <h2 className="t-h2">{t.dashboard.noResults || 'Sin resultados'}</h2>
-            <p className="t-body">{t.dashboard?.noResultsSub || 'Intenta con otro nombre o raza.'}</p>
+            <h2 className="t-h2">{t.dashboard.noResults}</h2>
+            <p className="t-body">{t.dashboard.noResultsSub}</p>
           </div>
         ) : !error ? (
           <div className="cards cards--portrait">
@@ -148,7 +148,7 @@ export default function Dashboard() {
         ) : null}
       </main>
 
-      <button className="fab" onClick={() => navigate('/pets/new')} title="Agregar mascota" aria-label="Agregar mascota">
+      <button className="fab" onClick={() => navigate('/pets/new')} title={t.dashboard.addBtn} aria-label={t.dashboard.addBtn}>
         <Plus size={26} strokeWidth={2.6} />
       </button>
     </>
@@ -159,11 +159,11 @@ function EmptyState({ t, onAdd }) {
   return (
     <div className="empty">
       <div className="empty-art">🐾</div>
-      <h2 className="t-h2">{t.dashboard.emptyTitle || 'Aún no tienes mascotas'}</h2>
-      <p className="t-body">{t.dashboard.emptySub || 'Agrega tu primera mascota para comenzar a registrar su salud.'}</p>
+      <h2 className="t-h2">{t.dashboard.emptyTitle}</h2>
+      <p className="t-body">{t.dashboard.emptySub}</p>
       <button className="btn btn-primary btn-lg" onClick={onAdd}>
         <Plus size={19} strokeWidth={2.6} />
-        {t.dashboard.emptyBtn || 'Agregar mi primera mascota'}
+        {t.dashboard.emptyBtn}
       </button>
     </div>
   )

@@ -1,41 +1,16 @@
 import { useNavigate } from 'react-router-dom'
 import { Stethoscope, Scale, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
-
-function calcAge(birthDate, tc) {
-  if (!birthDate) return tc.unknownAge
-  const birth = new Date(birthDate)
-  const now = new Date()
-  let years = now.getFullYear() - birth.getFullYear()
-  let months = now.getMonth() - birth.getMonth()
-  if (months < 0) { years--; months += 12 }
-  if (years < 0 || (years === 0 && months < 0)) return tc.unknownAge
-  if (years === 0) return `${months} ${months === 1 ? tc.month : tc.months}`
-  if (months === 0) return `${years} ${years === 1 ? tc.year : tc.years}`
-  return `${years} ${years === 1 ? tc.year : tc.years} ${tc.and} ${months} ${months === 1 ? tc.month : tc.months}`
-}
-
-function formatDateRelative(dateStr) {
-  if (!dateStr) return null
-  const d = new Date(dateStr)
-  const now = new Date()
-  const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Hoy'
-  if (diffDays === 1) return 'Ayer'
-  if (diffDays < 7) return `Hace ${diffDays} días`
-  if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} sem.`
-  if (diffDays < 365) return `Hace ${Math.floor(diffDays / 30)} mes.`
-  return `Hace ${Math.floor(diffDays / 365)} año(s)`
-}
+import { calcAge, relativeDate } from '../utils/format'
 
 export default function PetCard({ pet, index = 0 }) {
   const navigate = useNavigate()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
 
   const speciesEmoji = pet.species === 'cat' ? '🐱' : '🐶'
   const speciesCls = pet.species === 'cat' ? 'badge-cat' : 'badge-dog'
   const age = calcAge(pet.birth_date, t.common)
-  const lastVisit = formatDateRelative(pet.last_checkup)
+  const lastVisit = relativeDate(pet.last_checkup, lang)
 
   return (
     <article
@@ -87,7 +62,7 @@ export default function PetCard({ pet, index = 0 }) {
 
         <div className="pc-stats">
           <div className="pc-stat">
-            <div className="k">{t.common.weight || 'Peso'}</div>
+            <div className="k">{t.common.weight}</div>
             <div className="v">
               <Scale size={14} style={{ color: 'var(--text-3)' }} />
               {pet.weight_kg != null ? (
@@ -96,7 +71,7 @@ export default function PetCard({ pet, index = 0 }) {
             </div>
           </div>
           <div className="pc-stat">
-            <div className="k">{t.profile?.lastCheckup || 'Última visita'}</div>
+            <div className="k">{t.profile.lastCheckup}</div>
             <div className="v" style={{ fontSize: 13 }}>
               <Stethoscope size={13} style={{ color: 'var(--text-3)' }} />
               {lastVisit || '—'}

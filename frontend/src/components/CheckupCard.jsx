@@ -1,7 +1,13 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, Stethoscope, Pencil, X, Check, Pill, Calendar, Paperclip } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
-import { deleteCheckup, updateCheckup, uploadCheckupAttachment, deleteAttachment } from '../api'
+import {
+  deleteCheckup, updateCheckup, uploadCheckupAttachment,
+  createMedication, updateMedication, deleteMedication,
+} from '../api'
+import { formatDate } from '../utils/format'
+import Attachments from './Attachments'
+import MedicationForm, { toMedicationDraft, medicationPayload, validateMedications } from './MedicationForm'
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-3)', border: '1.5px solid var(--border-2)',
@@ -9,104 +15,8 @@ const inputStyle = {
   fontFamily: 'var(--f-pet)', outline: 'none', boxSizing: 'border-box',
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return null
-  const [y, m, d] = dateStr.split('-')
-  return `${d}/${m}/${y}`
-}
-
-function AttachmentsSection({ attachments, setAttachments, entityId, t }) {
-  const fileInputRef = useRef(null)
-  const [uploading, setUploading] = useState(false)
-
-  async function handleUpload(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    if (attachments.length >= 3) { alert(t.checkup.maxFiles); return }
-    setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await uploadCheckupAttachment(entityId, fd)
-      setAttachments(prev => [...prev, res.data])
-    } catch (err) {
-      alert(err.response?.data?.error || t.checkup.uploadError)
-    } finally {
-      setUploading(false)
-      e.target.value = ''
-    }
-  }
-
-  async function handleDelete(attId) {
-    if (!window.confirm(t.checkup.deleteFileConfirm)) return
-    try {
-      await deleteAttachment(attId)
-      setAttachments(prev => prev.filter(a => a.id !== attId))
-    } catch {
-      alert(t.checkup.deleteFileError)
-    }
-  }
-
-  if (attachments.length === 0 && attachments.length >= 3) return null
-
-  return (
-    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <span className="t-label muted-3">{t.checkup.attachments}</span>
-        {attachments.length < 3 && (
-          <>
-            <input ref={fileInputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={handleUpload} />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="btn btn-ghost btn-sm"
-            >
-              <Paperclip size={14} />
-              {uploading ? t.checkup.uploading : `+ ${t.checkup.attachBtn}`}
-            </button>
-          </>
-        )}
-      </div>
-
-      {attachments.length === 0 ? (
-        <p style={{ fontSize: 13, color: 'var(--text-3)', fontStyle: 'italic', margin: 0 }}>{t.checkup.noAttachments}</p>
-      ) : (
-        <div className="attach">
-          {attachments.map(att => {
-            const ext = att.file_name?.split('.').pop()?.toUpperCase() || 'FILE'
-            return (
-              <div key={att.id} className="attach-item" style={{ cursor: 'pointer' }} onClick={() => window.open(att.file_url, '_blank')}>
-                {att.file_type === 'image' ? (
-                  <img src={att.file_url} alt={att.file_name} style={{ width: 30, height: 36, borderRadius: 6, objectFit: 'cover' }} />
-                ) : (
-                  <div className="fic">{ext}</div>
-                )}
-                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
-                  {att.file_name}
-                </span>
-                <button
-                  onClick={e => { e.stopPropagation(); handleDelete(att.id) }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: 0, display: 'flex' }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) {
-  const { t } = useLanguage()
-  const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [attachments, setAttachments] = useState(checkup.attachments || [])
-  const [editForm, setEditForm] = useState({
+function formFromCheckup(checkup) {
+  return {
     vet_name: checkup.vet_name || '',
     clinic_name: checkup.clinic_name || '',
     checkup_date: checkup.checkup_date || '',
@@ -114,7 +24,48 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
     diagnosis: checkup.diagnosis || '',
     observations: checkup.observations || '',
     next_visit_date: checkup.next_visit_date || '',
-  })
+  }
+}
+
+// Aplica en el backend las diferencias entre los medicamentos originales y los borradores
+async function syncMedications(checkupId, original, drafts) {
+  const keptIds = new Set(drafts.filter(d => d.id).map(d => d.id))
+  await Promise.all(original.filter(m => !keptIds.has(m.id)).map(m => deleteMedication(m.id)))
+
+  const byId = Object.fromEntries(original.map(m => [m.id, m]))
+  const saved = []
+  for (const draft of drafts) {
+    const payload = medicationPayload(draft)
+    if (!draft.id) {
+      saved.push((await createMedication(checkupId, payload)).data)
+      continue
+    }
+    const prev = byId[draft.id]
+    const changed = Object.keys(payload).some(k => (payload[k] ?? null) !== (prev[k] ?? null))
+    saved.push(changed ? (await updateMedication(draft.id, payload)).data : prev)
+  }
+  return saved
+}
+
+export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) {
+  const { t, lang } = useLanguage()
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [attachments, setAttachments] = useState(checkup.attachments || [])
+  const [editForm, setEditForm] = useState(() => formFromCheckup(checkup))
+  const [medDrafts, setMedDrafts] = useState([])
+  const [medErrors, setMedErrors] = useState({})
+
+  const medications = checkup.medications || []
+
+  function startEditing() {
+    setEditForm(formFromCheckup(checkup))
+    setMedDrafts(medications.map(toMedicationDraft))
+    setMedErrors({})
+    setEditing(true)
+  }
 
   async function handleDelete() {
     if (!window.confirm(t.checkup.deleteConfirm)) return
@@ -129,29 +80,20 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
   }
 
   async function handleSave() {
+    const me = validateMedications(medDrafts, t)
+    setMedErrors(me)
+    if (Object.keys(me).length) return
     setSaving(true)
     try {
       const res = await updateCheckup(checkup.id, editForm)
-      onUpdate({ ...res.data, attachments })
+      const savedMeds = await syncMedications(checkup.id, medications, medDrafts)
+      onUpdate({ ...res.data, medications: savedMeds, attachments })
       setEditing(false)
     } catch (err) {
       alert(err.response?.data?.error || t.checkup.saveError)
     } finally {
       setSaving(false)
     }
-  }
-
-  function handleCancel() {
-    setEditForm({
-      vet_name: checkup.vet_name || '',
-      clinic_name: checkup.clinic_name || '',
-      checkup_date: checkup.checkup_date || '',
-      reason: checkup.reason || '',
-      diagnosis: checkup.diagnosis || '',
-      observations: checkup.observations || '',
-      next_visit_date: checkup.next_visit_date || '',
-    })
-    setEditing(false)
   }
 
   function setField(k, v) { setEditForm(f => ({ ...f, [k]: v })) }
@@ -173,9 +115,9 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
           <div className="rec-ttl">
             <div className="r1">
               <h4>{checkup.reason || t.checkup.noReason}</h4>
-              {checkup.medications?.length > 0 && (
+              {medications.length > 0 && (
                 <span className="badge badge-neutral">
-                  <Pill size={12} /> {checkup.medications.length} {checkup.medications.length === 1 ? 'med' : 'meds'}
+                  <Pill size={12} /> {medications.length} {medications.length === 1 ? t.checkup.medOne : t.checkup.medMany}
                 </span>
               )}
               {attachments.length > 0 && (
@@ -185,8 +127,8 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
               )}
             </div>
             <div className="r2">
-              <span><Calendar size={13} /> {formatDate(checkup.checkup_date)}</span>
-              {checkup.vet_name && <><span>·</span><span>Dr. {checkup.vet_name}</span></>}
+              <span><Calendar size={13} /> {formatDate(checkup.checkup_date, lang)}</span>
+              {checkup.vet_name && <><span>·</span><span>{t.checkup.doctor} {checkup.vet_name}</span></>}
               {checkup.clinic_name && <><span>·</span><span>{checkup.clinic_name}</span></>}
             </div>
           </div>
@@ -201,19 +143,24 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
                 /* Edit form */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <LabelInput label={t.addCheckup?.vet || 'Veterinario'} value={editForm.vet_name} onChange={v => setField('vet_name', v)} />
-                    <LabelInput label={t.addCheckup?.clinic || 'Clínica'} value={editForm.clinic_name} onChange={v => setField('clinic_name', v)} />
+                    <LabelInput label={t.addCheckup.vet} value={editForm.vet_name} onChange={v => setField('vet_name', v)} />
+                    <LabelInput label={t.addCheckup.clinic} value={editForm.clinic_name} onChange={v => setField('clinic_name', v)} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <LabelInput label={t.addCheckup?.date || 'Fecha'} type="date" value={editForm.checkup_date} onChange={v => setField('checkup_date', v)} />
-                    <LabelInput label={t.addCheckup?.nextVisit || 'Próxima visita'} type="date" value={editForm.next_visit_date} onChange={v => setField('next_visit_date', v)} />
+                    <LabelInput label={t.addCheckup.date} type="date" value={editForm.checkup_date} onChange={v => setField('checkup_date', v)} />
+                    <LabelInput label={t.addCheckup.nextVisit} type="date" value={editForm.next_visit_date} onChange={v => setField('next_visit_date', v)} />
                   </div>
                   <LabelInput label={t.checkup.reason} textarea value={editForm.reason} onChange={v => setField('reason', v)} />
                   <LabelInput label={t.checkup.diagnosis} textarea value={editForm.diagnosis} onChange={v => setField('diagnosis', v)} />
                   <LabelInput label={t.checkup.observations} textarea rows={3} value={editForm.observations} onChange={v => setField('observations', v)} />
 
+                  <div>
+                    <div className="t-label muted-3" style={{ marginBottom: 8 }}>{t.addCheckup.medsTitle}</div>
+                    <MedicationForm medications={medDrafts} onChange={setMedDrafts} errors={medErrors} compact />
+                  </div>
+
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button onClick={handleCancel} className="btn btn-ghost btn-sm">
+                    <button onClick={() => setEditing(false)} className="btn btn-ghost btn-sm">
                       <X size={14} /> {t.checkup.cancelBtn}
                     </button>
                     <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm">
@@ -233,7 +180,7 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
                     )}
                     {checkup.clinic_name && (
                       <div>
-                        <div className="k">{t.addCheckup?.clinic || 'Clínica'}</div>
+                        <div className="k">{t.addCheckup.clinic}</div>
                         <div className="v">{checkup.clinic_name}</div>
                       </div>
                     )}
@@ -252,21 +199,21 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
                       <Calendar size={14} style={{ color: 'var(--accent-ink)' }} />
                       <span style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 600 }}>
-                        <strong>{t.checkup.nextVisit}</strong> {formatDate(checkup.next_visit_date)}
+                        <strong>{t.checkup.nextVisit}</strong> {formatDate(checkup.next_visit_date, lang)}
                       </span>
                     </div>
                   )}
 
-                  {checkup.medications?.length > 0 && (
+                  {medications.length > 0 && (
                     <div className="med-list">
-                      {checkup.medications.map(med => (
+                      {medications.map(med => (
                         <div className="med" key={med.id}>
                           <div className="mic"><Pill size={16} /></div>
                           <div style={{ flex: 1 }}>
                             <div className="mname">{med.name}{med.concentration && ` (${med.concentration})`}</div>
                             <div className="mdose">
                               {med.frequency}
-                              {med.duration_days && ` · ${med.duration_days} ${t.common.days}`}
+                              {med.duration_days != null && ` · ${med.duration_days} ${t.common.days}`}
                               {med.notes && ` · ${med.notes}`}
                             </div>
                           </div>
@@ -276,28 +223,21 @@ export default function CheckupCard({ checkup, index = 0, onDelete, onUpdate }) 
                   )}
 
                   <div className="rec-actions">
-                    <button
-                      onClick={() => setEditing(true)}
-                      className="btn btn-ghost btn-sm"
-                    >
+                    <button onClick={startEditing} className="btn btn-ghost btn-sm">
                       <Pencil size={14} /> {t.checkup.editBtn}
                     </button>
-                    <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="btn btn-danger btn-sm"
-                    >
+                    <button onClick={handleDelete} disabled={deleting} className="btn btn-danger btn-sm">
                       {deleting ? t.common.deleting : t.checkup.deleteBtn}
                     </button>
                   </div>
                 </>
               )}
 
-              <AttachmentsSection
+              <Attachments
                 attachments={attachments}
                 setAttachments={setAttachments}
-                entityId={checkup.id}
-                t={t}
+                upload={fd => uploadCheckupAttachment(checkup.id, fd)}
+                labels={t.checkup}
               />
             </div>
           </div>

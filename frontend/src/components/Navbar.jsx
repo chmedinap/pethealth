@@ -40,7 +40,7 @@ export default function Navbar() {
           onClick={() => navigate('/')}
         >
           <LayoutGrid size={17} />
-          {t.nav?.companions || 'Mis mascotas'}
+          {t.nav.companions}
         </button>
       </div>
 
@@ -58,14 +58,23 @@ export default function Navbar() {
       </button>
 
       {/* Avatar */}
-      {user && <div className="avatar" title={user.username}>{initial}</div>}
+      {user && (
+        <button
+          className="avatar"
+          onClick={() => navigate('/account')}
+          title={`${t.nav.account} · ${user.username}`}
+          aria-label={t.nav.account}
+        >
+          {initial}
+        </button>
+      )}
 
       {/* Logout */}
       {user && (
         <button
           className="icon-btn"
           onClick={logout}
-          title={t.nav?.logout || 'Salir'}
+          title={t.nav.logout}
           aria-label="Logout"
         >
           <LogOut size={18} />
