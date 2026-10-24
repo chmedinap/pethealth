@@ -1,184 +1,290 @@
 # PetHealth Tracker 🐾
 
-Web application for tracking your pets' medical history. Record vet visits, medications, lab exams (with PDF support), and photos of your dogs and cats — all in one place, with dark mode and English/Spanish interface support.
+[![CI](https://github.com/chmedinap/pethealth/actions/workflows/ci.yml/badge.svg)](https://github.com/chmedinap/pethealth/actions/workflows/ci.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/martitoci/pethealth)](https://hub.docker.com/r/martitoci/pethealth)
+[![Docker Image Size](https://img.shields.io/docker/image-size/martitoci/pethealth/latest)](https://hub.docker.com/r/martitoci/pethealth)
+
+**A self-hosted medical record for your pets.** Keep vet visits, prescriptions, lab results, vaccines, parasite treatments, weight and expenses in one place, and get reminded before anything is due — by email or right in your calendar.
+
+One Docker container, one SQLite file, no cloud account. Spanish and English interface, light and dark mode, works on your phone.
+
+![Dashboard](docs/screenshots/dashboard.jpg)
+
+---
+
+## Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Email reminders](#email-reminders)
+- [Calendar subscription](#calendar-subscription)
+- [Reverse proxy (HTTPS)](#reverse-proxy-https)
+- [Backups, upgrades and data](#backups-upgrades-and-data)
+- [Security](#security)
+- [Development](#development)
+- [Project structure](#project-structure)
+- [API](#api)
 
 ---
 
 ## Features
 
-- **Dashboard** — pet grid with search, species filters, and an **upcoming care** panel: overdue/upcoming vet visits, vaccine boosters and active treatments
-- **Pet profiles** — vitals, photos, and tabs for checkups, lab exams, vaccines and weight
-- **Vet checkups** — diagnosis, observations, editable medications, file attachments
-- **Lab exams** — values, PDFs, attachments, and a **trend chart** for any parameter measured more than once (with its reference range)
-- **Vaccines** — doses and boosters with status (up to date / due soon / overdue)
-- **Weight history** — chart and log; the pet's current weight is always the latest entry
-- **Parasite control** — internal, external and combined treatments with next-dose reminders
-- **Dose tracking** — log each dose of an active treatment (who and when) right from the dashboard; the daily target comes from the frequency ("every 8 hours" → 3)
-- **Allergies & chronic conditions** — highlighted on the profile, the summary and the printable report
-- **Expenses** — optional cost on checkups, exams, vaccines and parasite treatments, with totals per pet and per year
-- **Timeline** — every record of a pet in a single chronological view
-- **Vet directory** — personal list of vets and clinics (phone, email, address) that autocompletes forms; can be imported from your history
-- **Email reminders** — a digest when something is due in 7 days, tomorrow, today, or has been overdue for 3 days (needs SMTP)
-- **Calendar feed** — private `.ics` link to subscribe from Google Calendar, Apple Calendar or Outlook
-- **Export / import** — move a pet with its full history and files between accounts or installations as a ZIP
-- **Printable report** — full medical history, ready to "Save as PDF" for a new vet
-- **Sharing** — give another user view-only or edit access to a pet
-- **Species** — dogs, cats, birds, rabbits, rodents, ferrets, reptiles, fish, horses and more
-- **Shareable summary** — send a pet's health summary to your vet
+### Health record
+- **Vet checkups** — reason, diagnosis, observations, next visit, prescribed medications and up to 3 attachments (PDF or images)
+- **Lab exams** — values with units and reference ranges, PDF report, and a **trend chart** for any parameter measured more than once
+- **Vaccines** — doses and boosters with status: up to date, due soon or overdue
+- **Parasite control** — internal, external and combined treatments, with one-click "next dose in 1 / 3 / 6 months"
+- **Allergies & chronic conditions** — shown at the top of the profile, in the shareable summary and in the printable report
+- **Weight history** — chart and log; the current weight is always the latest entry
+- **Timeline** — every record of a pet in one chronological view, filterable by type
+
+### Day-to-day care
+- **Upcoming care** on the dashboard — overdue and upcoming visits, vaccine boosters and parasite treatments across all your pets
+- **Dose tracking** — tap to log each dose of an active treatment (who gave it and when). The daily target comes from the prescription: "every 8 hours" → 3 a day
+- **Email reminders** — a digest when something is due in 7 days, tomorrow or today, or has been overdue for 3 days
+- **Calendar feed** — a private `.ics` link for Google Calendar, Apple Calendar or Outlook, with an alert the day before
+
+### Organisation
+- **Expenses** — optional cost on checkups, exams, vaccines and parasite treatments; totals per pet, per year and per category, in your currency
+- **Vet directory** — your vets and clinics with phone, email and address; autocompletes forms and can be built from your history
+- **Printable report** — the full medical history, ready to "Save as PDF" for a new vet
+- **Shareable summary** — a plain-text health summary to send by WhatsApp or email
+- **Export / import** — move a pet with its whole history and files to another account or installation as a ZIP
+
+### Multi-user & self-hosting
+- **Sharing** — give family members or a pet sitter view-only or edit access to a pet
+- **Any species** — dogs, cats, birds, rabbits, rodents, ferrets, reptiles, fish, horses…
 - **Account security** — forced change of the default password, login rate limiting, "sign out of other devices"
 - **Automatic backups** — consistent SQLite snapshots with rotation
-- **Dark mode**, **Spanish/English**, responsive
+- **Demo data** — a fresh install comes with 4 example pets so you can explore everything right away
 
 ---
 
-## Tech Stack
+## Screenshots
 
-| Layer | Technology |
+| Pet timeline | Expenses |
 |---|---|
-| Frontend | React 18, Vite, Tailwind CSS, React Router, Axios, Lucide |
-| Backend | Node.js, Express, better-sqlite3 |
-| Auth | JWT (jsonwebtoken) + bcryptjs; httpOnly cookie for file access |
-| File uploads | Multer (photos, PDFs, attachments) |
-| Containers | Docker (single image — frontend built in and served by Express) |
+| ![Timeline](docs/screenshots/profile-timeline.jpg) | ![Expenses](docs/screenshots/expenses.jpg) |
 
----
+| Checkup with dose log | Dark mode |
+|---|---|
+| ![Checkup](docs/screenshots/checkup.jpg) | ![Dark mode](docs/screenshots/dashboard-dark.jpg) |
 
-## Requirements
-
-- [Docker](https://docs.docker.com/get-docker/) installed.
-- No Node.js needed on the host to run in production.
+<p align="center"><img src="docs/screenshots/mobile.jpg" alt="Mobile" width="300"></p>
 
 ---
 
 ## Quick start
 
-### Option A — Docker Hub image (fastest)
+You only need [Docker](https://docs.docker.com/get-docker/).
 
-```bash
-docker run -d \
-  -p 3000:3001 \
-  -e JWT_SECRET=change_this_to_a_long_random_secret \
-  -e NODE_ENV=production \
-  -v "$(pwd)/data:/app/data" \
-  --name pethealth \
-  martitoci/pethealth:latest
-```
+### Docker Compose (recommended)
 
-Open `http://localhost:3000` — default credentials: **admin / admin123** (you'll be asked to change the password).
-
-A fresh install comes with **4 demo pets** — Milo (dog), Luna (cat), Copito (rabbit) and Rocky (puppy) — with checkups, exams, vaccines and weight history dated relative to the first start, so reminders, active treatments and charts all have data. Set `SEED_DEMO=false` to start empty.
-
----
-
-### Option B — Docker Compose (recommended for self-hosting)
-
-**1. Create a `.env` file** in the project root (see `.env.example`):
-
-```bash
-cp .env.example .env
-# then set JWT_SECRET, e.g.:
-echo "JWT_SECRET=$(openssl rand -hex 32)" >> .env
-```
-
-**2. Start:**
-
-```bash
-docker compose up -d
-```
-
-**3. Open:** `http://localhost:3000`
-
-> Change the default credentials immediately after first login.
-
----
-
-### Option C — Build from source
-
-```bash
-git clone https://github.com/martitoci/pethealth.git
-cd pethealth
-docker compose up --build -d
-```
-
----
-
-## docker-compose.yml
+Create a folder with this `docker-compose.yml`:
 
 ```yaml
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  pethealth:
+    image: martitoci/pethealth:latest
     container_name: pethealth
     restart: unless-stopped
     ports:
       - "3000:3001"
     volumes:
       - ./data:/app/data
-    environment:
-      - JWT_SECRET=${JWT_SECRET:?Define JWT_SECRET en .env (openssl rand -hex 32)}
-      - NODE_ENV=${NODE_ENV:-production}
-      - PORT=${PORT:-3001}
-      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
-      - TRUST_PROXY=${TRUST_PROXY:-false}
-      - LOGIN_RATE_LIMIT=${LOGIN_RATE_LIMIT:-10}
-      - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-24}
-      - BACKUP_KEEP=${BACKUP_KEEP:-7}
-      - TZ=${TZ:-UTC}
-      - SEED_DEMO=${SEED_DEMO:-true}
-      - APP_URL=${APP_URL:-}
-      - SMTP_HOST=${SMTP_HOST:-}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_SECURE=${SMTP_SECURE:-false}
-      - SMTP_USER=${SMTP_USER:-}
-      - SMTP_PASS=${SMTP_PASS:-}
-      - SMTP_FROM=${SMTP_FROM:-}
-      - NOTIFY_HOUR=${NOTIFY_HOUR:-8}
+    env_file: .env
 ```
 
-> Variables are read from the `.env` file in the same folder. Compose refuses to start if `JWT_SECRET` is missing.
+and a `.env` next to it (see [.env.example](.env.example) for every option):
+
+```bash
+echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
+echo "TZ=America/Bogota" >> .env
+docker compose up -d
+```
+
+Open **http://localhost:3000** and sign in with **admin / admin123**. You'll be asked to choose a new password before anything else.
+
+### docker run
+
+```bash
+docker run -d --name pethealth --restart unless-stopped \
+  -p 3000:3001 \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e TZ=America/Bogota \
+  -v "$(pwd)/data:/app/data" \
+  martitoci/pethealth:latest
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/chmedinap/pethealth.git
+cd pethealth
+cp .env.example .env    # then set JWT_SECRET
+docker compose up --build -d
+```
+
+> **Demo data.** The first start creates 4 example pets — Milo, Luna, Copito and Rocky — with dates relative to that day, so reminders, treatments and charts all have something to show. Delete them when you're done, or set `SEED_DEMO=false` before the first start to begin empty.
 
 ---
 
-## Environment variables
+## Configuration
 
-| Variable | Description | Required |
+All settings are environment variables. Only `JWT_SECRET` is required.
+
+| Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | Secret key for signing JWT tokens | **Yes** (the server exits without it) |
-| `NODE_ENV` | Runtime environment | No (default: `production` in the image) |
-| `PORT` | Internal container port | No (default: `3001`) |
-| `ALLOW_REGISTRATION` | `true` shows a sign-up option on the login screen | No (default: `false`) |
-| `TRUST_PROXY` | Set to `true` if running behind a proxy/nginx (also needed for per-IP rate limiting) | No |
-| `LOGIN_RATE_LIMIT` | Failed login/sign-up attempts allowed per IP every 15 min (`0` disables) | No (default: `10`) |
-| `BACKUP_INTERVAL_HOURS` | Hours between automatic database backups (`0` disables) | No (default: `24`) |
-| `BACKUP_KEEP` | Number of backups to keep | No (default: `7`) |
-| `SEED_DEMO` | Load 4 demo pets on first start (`false` to start empty) | No (default: `true`) |
-| `APP_URL` | Public URL of the app, used for links in emails and calendar events (e.g. `https://pets.example.com`) | No |
-| `SMTP_HOST` | SMTP server for email reminders. Without it, email is turned off | No |
-| `SMTP_PORT` / `SMTP_SECURE` | SMTP port, and `true` for implicit TLS (port 465) | No (default: `587` / `false`) |
-| `SMTP_USER` / `SMTP_PASS` | SMTP credentials (for Gmail, use an app password) | No |
-| `SMTP_FROM` | Sender address, e.g. `PetHealth <pets@example.com>` | No (default: `SMTP_USER`) |
-| `NOTIFY_HOUR` | Local hour (0–23) from which the daily digest is sent | No (default: `8`) |
-| `TZ` | Server time zone (e.g. `America/Bogota`) | No (default: `UTC`) |
-| `DATA_DIR` | Where the database, uploads and backups live | No (default: `/app/data` in Docker, `backend/data` locally) |
+| `JWT_SECRET` | — | **Required.** Secret for signing sessions. Generate with `openssl rand -hex 32`; the server won't start without it |
+| `TZ` | `UTC` | Server time zone, e.g. `America/Bogota`. Affects "today" for reminders and emails |
+| `ALLOW_REGISTRATION` | `false` | `true` shows a sign-up option on the login screen |
+| `SEED_DEMO` | `true` | Create the 4 demo pets on the very first start |
+| `APP_URL` | — | Public URL of the app (e.g. `https://pets.example.com`), used for links in emails and calendar events |
+| `TRUST_PROXY` | `false` | Set to `true` behind a reverse proxy (secure cookies and real client IP) |
+| `LOGIN_RATE_LIMIT` | `10` | Failed login attempts allowed per IP every 15 minutes (`0` disables) |
+| `BACKUP_INTERVAL_HOURS` | `24` | Hours between automatic database backups (`0` disables) |
+| `BACKUP_KEEP` | `7` | Number of backups to keep |
+| `SMTP_HOST` | — | SMTP server for email reminders. Without it, email is off |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_SECURE` | `false` | `true` for implicit TLS (usually port 465) |
+| `SMTP_USER` / `SMTP_PASS` | — | SMTP credentials |
+| `SMTP_FROM` | `SMTP_USER` | Sender, e.g. `PetHealth <pets@example.com>` |
+| `NOTIFY_HOUR` | `8` | Local hour (0–23) from which the daily digest is sent |
+| `PORT` | `3001` | Port inside the container |
+| `DATA_DIR` | `/app/data` | Where the database, uploads and backups live |
+
+Per-user preferences — currency, language, notification email and calendar link — are set in the app under **My account**.
 
 ---
 
-## Deploying behind a reverse proxy / nginx
+## Email reminders
 
-Add `TRUST_PROXY=true` to environment variables, then configure nginx:
+1. Add SMTP settings to `.env` and restart the container. For example, with Gmail (requires an [app password](https://myaccount.google.com/apppasswords)):
+
+   ```env
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=465
+   SMTP_SECURE=true
+   SMTP_USER=you@gmail.com
+   SMTP_PASS=your-app-password
+   SMTP_FROM=PetHealth <you@gmail.com>
+   APP_URL=https://pets.example.com
+   ```
+
+2. In **My account → Email reminders**, enter your address, tick the box and save. Use **Send test email** to check the setup.
+
+The server checks every hour and sends at most one email per user per day, after `NOTIFY_HOUR`. An email goes out only on days when something is due in 7 days, tomorrow or today, or has been overdue for 3 days, so you aren't sent the same reminder every day. Each email lists everything that is overdue or coming up in the next week, plus ongoing treatments, in the user's language.
+
+---
+
+## Calendar subscription
+
+In **My account → Calendar**, create your private link and add it to your calendar app:
+
+- **Google Calendar:** *Other calendars → + → From URL*, paste the link
+- **Apple Calendar / Outlook:** use **Open in my calendar**, or subscribe to the URL manually
+
+The feed includes next vet visits, vaccine boosters, parasite treatments and ongoing medications for all the pets you can see, with an alert the day before. Calendar apps refresh it on their own schedule (Google can take several hours).
+
+The link works without signing in, which is why it's random and long. If it leaks, use **Change link** to invalidate the old one.
+
+---
+
+## Reverse proxy (HTTPS)
+
+Set `TRUST_PROXY=true` and `APP_URL`, then proxy to port 3001. nginx example:
 
 ```nginx
-location / {
-    proxy_pass http://pethealth:3001;
-    proxy_set_header Host              $host;
-    proxy_set_header X-Real-IP         $remote_addr;
-    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    client_max_body_size 20m;
+server {
+    server_name pets.example.com;
+    client_max_body_size 200m;   # pet imports can be large; uploads are 5–15 MB
+
+    location / {
+        proxy_pass http://pethealth:3001;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 }
 ```
+
+Caddy: `pets.example.com { reverse_proxy pethealth:3001 }`.
+
+---
+
+## Backups, upgrades and data
+
+Everything lives in the mounted `data/` folder:
+
+```
+data/
+├── pethealth.db       # SQLite database
+├── backups/           # automatic snapshots (pethealth-YYYYMMDD-HHMMSS-mmm.db)
+└── uploads/           # photos/, pdfs/, attachments/
+```
+
+- **Backups.** The server keeps `BACKUP_KEEP` consistent snapshots in `data/backups/`, taken with SQLite's online backup API, which is safe while the app runs. Take one manually with `docker exec pethealth npm run backup`. Uploaded files never change once written, so copying the whole `data/` folder is a full backup.
+- **Restore.** Stop the container, put the folder back (or copy a snapshot over `pethealth.db`) and start it again.
+- **Upgrade.** `docker compose pull && docker compose up -d`. Schema changes are applied automatically on startup through versioned migrations (`PRAGMA user_version`).
+- **Moving a single pet.** Use *Export pet (ZIP)* on its profile and *Import* on the dashboard of the other account or installation.
+
+---
+
+## Security
+
+- Change the default **admin / admin123** password. The app blocks everything else until you do.
+- Never commit `.env`. Use a long random `JWT_SECRET`.
+- Passwords are hashed with bcrypt, and new passwords need at least 8 characters. Failed logins are rate-limited per IP.
+- Changing your password signs out every other session. *My account → Sign out of all other devices* does the same on demand.
+- Every record is scoped to the pets a user owns or was given access to. Other users' records answer `404`.
+- Uploads are restricted by type and size, stored under random names and only served to users with access to the pet. Imported files are checked by content, not by name.
+- Keep the instance behind HTTPS if it's reachable from the internet, and leave `ALLOW_REGISTRATION=false` unless you want anyone to be able to sign up.
+
+---
+
+## Development
+
+Requires Node.js 20+.
+
+```bash
+# Terminal 1 — API on :3001 (data in backend/data)
+cd backend && npm install
+JWT_SECRET=dev ALLOW_REGISTRATION=true npm run dev
+
+# Terminal 2 — UI on :5173, proxies /api and /uploads to the API
+cd frontend && npm install && npm run dev
+```
+
+### Tests
+
+```bash
+cd backend && npm test    # API: access control, sharing, doses, parasites, calendar, email, export/import, migrations…
+cd frontend && npm test   # utils: dates, money, dose frequency, expenses, timeline, lab parsing, chart ticks
+```
+
+GitHub Actions ([ci.yml](.github/workflows/ci.yml)) runs both suites, the production build and a Docker smoke test on every push and pull request.
+
+### Publishing the image
+
+Build for `linux/amd64` (most servers), even from an Apple Silicon Mac:
+
+```bash
+docker buildx build --platform linux/amd64 -t martitoci/pethealth:latest --push .
+```
+
+### Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, React Router, Axios, Lucide icons |
+| Backend | Node.js 20, Express, better-sqlite3 |
+| Auth | JWT + bcrypt; httpOnly cookie for file access |
+| Email / calendar | nodemailer, iCalendar (RFC 5545) feed |
+| Files | Multer uploads, adm-zip for pet export/import |
+| Packaging | One multi-stage Docker image: the built frontend is served by Express |
 
 ---
 
@@ -186,229 +292,36 @@ location / {
 
 ```
 pethealth/
-├── Dockerfile                 # Multi-stage: builds frontend → serves with Express
-├── docker-compose.yml
-├── .env.example               # Copy to .env (never commit .env)
-├── data/                      # Persistent volume (database + uploads)
+├── Dockerfile               # multi-stage: build frontend → serve with Express
+├── docker-compose.yml       # build-from-source setup
+├── .env.example
+├── docs/                    # API reference, screenshots
 ├── backend/
-│   ├── package.json
-│   └── src/
-│       ├── index.js           # Express server, protected /uploads, SPA serving
-│       ├── config.js          # Env vars and data paths
-│       ├── db.js              # SQLite schema, migrations, triggers, seed data
-│       ├── app.js             # Express app (imported by the tests)
-│       ├── access.js          # Role-based access: owner / editor / viewer per pet
-│       ├── session.js         # JWT + file-access cookie, session revocation
-│       ├── backup.js          # Scheduled SQLite backups (also `npm run backup`)
-│       ├── validate.js        # Shared input validation
-│       ├── files.js           # Upload validation, random file names, safe deletion
-│       ├── middleware/
-│       │   └── auth.js        # JWT verification (Bearer for API, cookie for files)
-│       ├── reminders.js       # Due items shared by the dashboard, email digest and calendar feed
-│       ├── notify.js          # Daily email digest (nodemailer)
-│       ├── ics.js             # iCalendar feed builder
-│       └── routes/            # auth, users, pets, checkups (+ doses), exams, vaccines, parasites, conditions,
-│                              # weights, vets, reminders, calendar, transfer (export/import), attachments
-│   └── test/                  # API, access, care features, calendar/email, export/import, migration… (node:test + supertest)
+│   ├── src/
+│   │   ├── app.js           # Express app and routing
+│   │   ├── db.js            # schema, migrations, triggers
+│   │   ├── seed.js          # demo pets
+│   │   ├── access.js        # owner / editor / viewer per pet
+│   │   ├── reminders.js     # due items shared by dashboard, email and calendar
+│   │   ├── notify.js        # daily email digest
+│   │   ├── ics.js           # calendar feed
+│   │   ├── backup.js        # scheduled SQLite backups
+│   │   └── routes/          # one file per resource
+│   └── test/                # node:test + supertest
 └── frontend/
-    ├── package.json
     └── src/
-        ├── index.css          # Design tokens, component classes, dark mode
-        ├── translations.js    # UI strings (ES / EN)
-        ├── utils/             # dates, money, species, vaccines, parasites, doses, expenses, timeline, labs (+ Vitest tests)
-        ├── App.jsx
-        ├── context/           # AuthContext, ThemeContext, LanguageContext
-        ├── pages/             # Login, Dashboard, PetProfile, PetReport, AddPet, AddCheckup, AddExam, Account, Vets
-        └── components/        # PetCard, CheckupCard, ExamViewer, VaccineList, ParasiteList, ConditionsCard,
-                               # ExpensesPanel, TimelinePanel, RemindersPanel, VetInput, WeightPanel, LineChart, …
+        ├── pages/           # Dashboard, PetProfile, PetReport, Account, Vets, forms…
+        ├── components/      # cards, panels, lists, charts
+        ├── utils/           # pure helpers (+ Vitest tests)
+        └── translations.js  # ES / EN strings
 ```
 
 ---
 
-## Local development
+## API
 
-Requires Node.js 20+.
-
-```bash
-# Terminal 1 — backend on :3001 (data goes to backend/data)
-cd backend && npm install && JWT_SECRET=dev ALLOW_REGISTRATION=true npm run dev
-
-# Terminal 2 — frontend on :5173, proxies /api and /uploads to the backend
-cd frontend && npm install && npm run dev
-```
-
-## Tests
-
-```bash
-cd backend && npm test     # 57 API tests: access control, sharing, migrations, backups, rate limiting
-cd frontend && npm test    # unit tests for dates, lab parsing, vaccines and chart ticks
-```
-
-GitHub Actions (`.github/workflows/ci.yml`) runs both suites, the frontend build and a Docker smoke test on every push and pull request.
+PetHealth has a JSON REST API (the same one the UI uses), authenticated with a Bearer token from `POST /api/auth/login`. See **[docs/API.md](docs/API.md)** for every endpoint.
 
 ---
 
-## API Reference
-
-All endpoints (except `/api/auth/config`, `login`, `register` and `logout`) require:
-```
-Authorization: Bearer <token>
-```
-
-Every resource is scoped to the pets the signed-in user can access. Without access the API returns `404`; with view-only access, changes return `403`.
-
-| Role | Can |
-|---|---|
-| owner | everything, including deleting the pet and managing sharing |
-| editor | add/edit/delete checkups, exams, vaccines, weight, photo and pet details |
-| viewer | read the pet, its history and files |
-
-While an account still has the default password, every endpoint except `/api/users/me`, `/api/users/me/password` and `/api/auth/refresh` returns `403` with `code: "PASSWORD_CHANGE_REQUIRED"`.
-
-Uploaded files (`/uploads/...`) are served only to their owner, authenticated by the httpOnly session cookie set at login.
-
-### Auth
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/auth/config` | Public options (`allowRegistration`) |
-| POST | `/api/auth/login` | Sign in → returns JWT and sets the file-access cookie |
-| POST | `/api/auth/register` | Register a new user (only if `ALLOW_REGISTRATION=true`) |
-| POST | `/api/auth/refresh` | Renew the JWT and cookie |
-| POST | `/api/auth/logout` | Clear the file-access cookie |
-
-### Users
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/users/me` | Current user |
-| PUT | `/api/users/me/password` | Change password (`current_password`, `new_password`); signs out other sessions and returns a new token |
-| POST | `/api/users/me/sessions/revoke` | Sign out of all other devices; returns a new token |
-
-### Pets
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/pets` | List all pets |
-| POST | `/api/pets` | Create a pet |
-| GET | `/api/pets/:id` | Get pet details |
-| PUT | `/api/pets/:id` | Update a pet |
-| DELETE | `/api/pets/:id` | Delete a pet |
-| POST | `/api/pets/:id/photo` | Upload photo (multipart, JPEG/PNG/GIF/WebP, max 5 MB) |
-| GET | `/api/pets/:id/shares` | List people with access (owner) |
-| POST | `/api/pets/:id/shares` | Share with `{ username, role: "viewer" \| "editor" }` (owner) |
-| DELETE | `/api/pets/:id/shares/:userId` | Remove access (owner), or stop viewing (the user themselves) |
-
-### Vaccines
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/pets/:id/vaccines` | List vaccines |
-| POST | `/api/pets/:id/vaccines` | Log a dose (`name`, `date_given`, optional `next_due_date`, `vet_name`, `batch_number`, `notes`) |
-| PUT | `/api/vaccines/:id` | Update |
-| DELETE | `/api/vaccines/:id` | Delete |
-
-### Weight
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/pets/:id/weights` | Weight history (oldest first) |
-| POST | `/api/pets/:id/weights` | Log `{ measured_on, weight_kg, notes }` (same date updates the entry) |
-| DELETE | `/api/weights/:id` | Delete an entry |
-
-### Reminders
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/reminders?today=YYYY-MM-DD&days=30` | Due/overdue visits and vaccine boosters, and active treatments, for all accessible pets |
-
-### Checkups
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/pets/:id/checkups` | List checkups |
-| POST | `/api/pets/:id/checkups` | Create checkup + medications |
-| GET | `/api/checkups/:id` | Get checkup details |
-| PUT | `/api/checkups/:id` | Update a checkup |
-| DELETE | `/api/checkups/:id` | Delete a checkup |
-| POST | `/api/checkups/:id/attachments` | Upload file attachment (image or PDF, max 10 MB, 3 per checkup) |
-
-### Medications
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/checkups/:id/medications` | List medications |
-| POST | `/api/checkups/:id/medications` | Add a medication |
-| PUT | `/api/medications/:id` | Update a medication |
-| DELETE | `/api/medications/:id` | Delete a medication |
-
-### Lab Exams
-| Method | Route | Description |
-|---|---|---|
-| GET | `/api/pets/:id/exams` | List exams |
-| POST | `/api/pets/:id/exams` | Create exam (multipart + optional PDF, max 15 MB) |
-| GET | `/api/exams/:id` | Get exam details |
-| PUT | `/api/exams/:id` | Update an exam |
-| DELETE | `/api/exams/:id` | Delete exam |
-| POST | `/api/exams/:id/values` | Add lab values |
-| PUT | `/api/exam-values/:id` | Update a value |
-| DELETE | `/api/exam-values/:id` | Delete a value |
-| POST | `/api/exams/:id/attachments` | Upload file attachment (image or PDF, max 10 MB, 3 per exam) |
-| DELETE | `/api/attachments/:id` | Delete an attachment |
-
----
-
-## Useful commands
-
-```bash
-# Pull latest image
-docker pull martitoci/pethealth:latest
-
-# Start / restart
-docker compose up -d
-
-# Stream logs
-docker compose logs -f
-
-# Stop
-docker compose down
-
-# Stop and wipe all data (irreversible)
-docker compose down -v
-
-# Rebuild from source after code changes
-docker compose up --build -d
-
-# Shell into container
-docker exec -it pethealth sh
-
-# Publish to Docker Hub
-docker build -t martitoci/pethealth:latest .
-docker push martitoci/pethealth:latest
-```
-
----
-
-## Data persistence
-
-The `./data/` directory is mounted as a Docker volume:
-
-```
-data/
-├── pethealth.db          # SQLite database
-├── backups/              # Automatic snapshots (pethealth-YYYYMMDD-HHMMSS-mmm.db)
-└── uploads/
-    ├── photos/           # Pet photos
-    ├── pdfs/             # Exam PDFs
-    └── attachments/      # Checkup and exam file attachments
-```
-
-The server keeps `BACKUP_KEEP` consistent snapshots of the database in `data/backups/` (taken with SQLite's online backup API, safe while the app is running). Run one manually with `docker exec pethealth npm run backup`.
-
-Uploaded files never change once written, so a full backup is simply a copy of the `data/` folder. To restore, stop the container, put the folder back (or copy a snapshot over `pethealth.db`) and start it again.
-
-Schema changes are applied automatically on startup (versioned migrations tracked with `PRAGMA user_version`).
-
----
-
-## Security notes
-
-- Never commit `.env` (it is in `.gitignore`). Generate a strong secret: `openssl rand -hex 32`
-- Passwords are hashed with bcrypt (10 rounds); new passwords need at least 8 characters.
-- The default **admin / admin123** account must change its password on first sign-in before it can use the app.
-- Failed logins are rate-limited per IP (`LOGIN_RATE_LIMIT`). Behind a reverse proxy, set `TRUST_PROXY=true` so the real client IP is used.
-- Changing the password signs out every other session; **My account → Sign out of all other devices** does the same on demand.
-- Uploads are restricted by type and size, stored under random names, and only served to their owner.
-- Upgrading from an older version: pets that existed before per-user ownership are assigned to the first user (admin) automatically on startup.
+Made with 🐶🐱🐰 for the ones who can't tell us where it hurts.
