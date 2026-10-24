@@ -3,6 +3,7 @@ import { useParams, useNavigate, Navigate, useSearchParams } from 'react-router-
 import {
   ArrowLeft, Pencil, Share2, Cake, Scale, Syringe, Stethoscope, FlaskConical, Plus,
   Users, FileText, LogOut, Camera, ChevronRight, AlertTriangle, CheckCircle2,
+  Bug, Wallet, History, Download,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import CheckupCard from '../components/CheckupCard'
@@ -11,22 +12,27 @@ import VaccineList from '../components/VaccineList'
 import WeightPanel from '../components/WeightPanel'
 import LabTrendDialog from '../components/LabTrendDialog'
 import ShareAccessDialog from '../components/ShareAccessDialog'
+import ParasiteList from '../components/ParasiteList'
+import ConditionsCard from '../components/ConditionsCard'
+import ExpensesPanel from '../components/ExpensesPanel'
+import TimelinePanel from '../components/TimelinePanel'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
 import {
-  getPet, getPetCheckups, getPetExams, getPetVaccines, getPetWeights,
-  deletePet, uploadPetPhoto, removePetShare,
+  getPet, getPetCheckups, getPetExams, getPetVaccines, getPetWeights, getPetParasites, getPetConditions,
+  deletePet, uploadPetPhoto, removePetShare, exportPet,
 } from '../api'
 import { calcAge, copyText, formatDate, todayISO } from '../utils/format'
 import { speciesMeta, speciesLabel } from '../utils/species'
 import { vaccineStatus, latestDoseIds } from '../utils/vaccines'
 import { parameterCounts } from '../utils/labs'
+import { latestParasiteIds, parasiteStatus } from '../utils/parasites'
 import { useFeedback } from '../context/FeedbackContext'
 
-const TABS = ['checkups', 'exams', 'vaccines', 'weight']
+const TABS = ['checkups', 'exams', 'vaccines', 'parasites', 'weight', 'expenses', 'timeline']
 
 // Resumen en texto plano para compartir con el veterinario o la familia
-function buildSummary(pet, checkups, exams, vaccines, t, lang) {
+function buildSummary(pet, { checkups, exams, vaccines, parasites, conditions }, t, lang) {
   const tp = t.profile
   const lines = [tp.summaryTitle.replace('{name}', pet.name)]
   const basics = [
@@ -36,6 +42,13 @@ function buildSummary(pet, checkups, exams, vaccines, t, lang) {
     pet.weight_kg != null ? `${pet.weight_kg} ${t.common.kg}` : null,
   ].filter(Boolean)
   lines.push(basics.join(' · '))
+
+  if (conditions.length) {
+    lines.push('', `${tp.summaryConditions}:`)
+    for (const c of conditions) {
+      lines.push(`• ${c.kind === 'allergy' ? '⚠ ' + t.conditions.allergy : t.conditions.chronic}: ${c.name}${c.notes ? ` — ${c.notes}` : ''}`)
+    }
+  }
 
   const last = checkups[0]
   if (last) lines.push('', `${tp.lastCheckup}: ${formatDate(last.checkup_date, lang)} — ${last.reason}`)
@@ -59,6 +72,15 @@ function buildSummary(pet, checkups, exams, vaccines, t, lang) {
       const status = vaccineStatus(v)
       const due = v.next_due_date ? ` — ${t.vaccines.nextDueShort} ${formatDate(v.next_due_date, lang)}` : ''
       lines.push(`• ${v.name} (${formatDate(v.date_given, lang)})${due}${status === 'overdue' ? ` ⚠ ${t.vaccines.statusOverdue}` : ''}`)
+    }
+  }
+
+  const currentParasites = parasites.filter(p => latestParasiteIds(parasites).has(p.id))
+  if (currentParasites.length) {
+    lines.push('', `${tp.summaryParasites}:`)
+    for (const p of currentParasites) {
+      const due = p.next_due_date ? ` — ${t.parasites.nextShort} ${formatDate(p.next_due_date, lang)}` : ''
+      lines.push(`• ${p.product} (${t.parasites.kinds[p.kind]}, ${formatDate(p.date_given, lang)})${due}${parasiteStatus(p) === 'overdue' ? ` ⚠ ${t.vaccines.statusOverdue}` : ''}`)
     }
   }
 
@@ -135,6 +157,9 @@ export default function PetProfile() {
   const [exams, setExams] = useState([])
   const [vaccines, setVaccines] = useState([])
   const [weights, setWeights] = useState([])
+  const [parasites, setParasites] = useState([])
+  const [conditions, setConditions] = useState([])
+  const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -145,14 +170,16 @@ export default function PetProfile() {
   useEffect(() => {
     async function load() {
       try {
-        const [petRes, checkupsRes, examsRes, vaccinesRes, weightsRes] = await Promise.all([
-          getPet(id), getPetCheckups(id), getPetExams(id), getPetVaccines(id), getPetWeights(id),
+        const [petRes, checkupsRes, examsRes, vaccinesRes, weightsRes, parasitesRes, conditionsRes] = await Promise.all([
+          getPet(id), getPetCheckups(id), getPetExams(id), getPetVaccines(id), getPetWeights(id), getPetParasites(id), getPetConditions(id),
         ])
         setPet(petRes.data)
         setCheckups(checkupsRes.data)
         setExams(examsRes.data)
         setVaccines(vaccinesRes.data)
         setWeights(weightsRes.data)
+        setParasites(parasitesRes.data)
+        setConditions(conditionsRes.data)
       } catch (err) {
         if (err.response?.status === 404) setNotFound(true)
       } finally {
@@ -180,7 +207,7 @@ export default function PetProfile() {
   }
 
   async function handleShareSummary() {
-    const text = buildSummary(pet, checkups, exams, vaccines, t, lang)
+    const text = buildSummary(pet, { checkups, exams, vaccines, parasites, conditions }, t, lang)
     try {
       if (navigator.share) {
         await navigator.share({ title: t.profile.summaryTitle.replace('{name}', pet.name), text })
@@ -190,6 +217,27 @@ export default function PetProfile() {
       }
     } catch (err) {
       if (err?.name !== 'AbortError') toast(t.profile.shareError)
+    }
+  }
+
+  // La descarga pasa por axios (lleva el token); el navegador guarda el blob
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const res = await exportPet(id)
+      const name = /filename="([^"]+)"/.exec(res.headers['content-disposition'] || '')?.[1] || `pethealth-${id}.zip`
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch {
+      toast(t.profile.exportError)
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -231,14 +279,18 @@ export default function PetProfile() {
   const genderLabel = pet.gender === 'male' ? t.common.male : pet.gender === 'female' ? t.common.female : null
   const paramCounts = parameterCounts(exams)
   const overdueVaccines = vaccines.filter(v => latestDoseIds(vaccines).has(v.id) && vaccineStatus(v) === 'overdue').length
+  const overdueParasites = parasites.filter(p => latestParasiteIds(parasites).has(p.id) && parasiteStatus(p) === 'overdue').length
 
   const tabs = [
     { k: 'checkups', icon: Stethoscope, label: t.profile.checkupsTitle, n: checkups.length },
     { k: 'exams', icon: FlaskConical, label: t.profile.examsTitle, n: exams.length },
     { k: 'vaccines', icon: Syringe, label: t.profile.vaccinesTitle, n: vaccines.length },
+    { k: 'parasites', icon: Bug, label: t.profile.parasitesTitle, n: parasites.length, alert: overdueParasites > 0 },
     { k: 'weight', icon: Scale, label: t.profile.weightTitle, n: weights.length },
+    { k: 'expenses', icon: Wallet, label: t.profile.expensesTitle },
+    { k: 'timeline', icon: History, label: t.profile.timelineTitle },
   ]
-  const newAction = { checkups: t.profile.newCheckup, exams: t.profile.newExam, vaccines: t.vaccines.add, weight: t.weight.add }[tab]
+  const newAction = { checkups: t.profile.newCheckup, exams: t.profile.newExam, vaccines: t.vaccines.add, parasites: t.parasites.add, weight: t.weight.add }[tab]
   // Consultas y exámenes abren su página; vacunas y peso abren el formulario en línea
   const onNewAction = () => (tab === 'checkups' || tab === 'exams' ? navigate(`/pets/${id}/${tab}/new`) : setAddRequest(n => n + 1))
 
@@ -311,6 +363,8 @@ export default function PetProfile() {
                     </Vital>
                   </div>
 
+                  <ConditionsCard pet={pet} conditions={conditions} setConditions={setConditions} canEdit={canEdit} />
+
                   {pet.notes && (
                     <div style={{ background: 'var(--surface-2)', borderRadius: 'var(--r-md)', padding: '13px 15px', marginBottom: 16 }}>
                       <div className="t-label muted-3" style={{ marginBottom: 6 }}>📝 {t.profile.notes}</div>
@@ -327,6 +381,7 @@ export default function PetProfile() {
                   <div className="action-list">
                     <ActionRow icon={Share2} label={t.profile.share} onClick={handleShareSummary} />
                     <ActionRow icon={FileText} label={t.report.open} onClick={() => navigate(`/pets/${id}/report`)} />
+                    <ActionRow icon={Download} label={t.profile.exportBtn} hint={exporting ? '…' : null} onClick={exporting ? undefined : handleExport} />
                     {isOwner && <ActionRow icon={Users} label={t.share.manage} onClick={() => setSharing(true)} />}
                   </div>
 
@@ -343,11 +398,11 @@ export default function PetProfile() {
             <section>
               <div className="records-head">
                 <div className="tabs" role="tablist">
-                  {tabs.map(({ k, icon: Icon, label, n }) => (
+                  {tabs.map(({ k, icon: Icon, label, n, alert }) => (
                     <button key={k} className="tab" role="tab" aria-selected={tab === k} data-on={tab === k ? '1' : '0'} onClick={() => setTab(k)}>
                       <Icon size={16} />
                       {label}
-                      <span className="pill-n">{n}</span>
+                      {n != null && <span className={`pill-n${alert ? ' is-alert' : ''}`}>{n}</span>}
                     </button>
                   ))}
                 </div>
@@ -410,6 +465,18 @@ export default function PetProfile() {
 
               {tab === 'vaccines' && (
                 <VaccineList pet={pet} vaccines={vaccines} setVaccines={setVaccines} canEdit={canEdit} addRequest={addRequest} />
+              )}
+
+              {tab === 'parasites' && (
+                <ParasiteList pet={pet} parasites={parasites} setParasites={setParasites} canEdit={canEdit} addRequest={addRequest} />
+              )}
+
+              {tab === 'expenses' && (
+                <ExpensesPanel checkups={checkups} exams={exams} vaccines={vaccines} parasites={parasites} />
+              )}
+
+              {tab === 'timeline' && (
+                <TimelinePanel data={{ checkups, exams, vaccines, parasites, weights, conditions }} onOpen={setTab} />
               )}
 
               {tab === 'weight' && (

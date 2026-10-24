@@ -24,7 +24,7 @@ before(() => {
 it('migra una base de la versión original sin perder datos', () => {
   const db = require('../src/db')
 
-  assert.equal(db.pragma('user_version', { simple: true }), 4)
+  assert.equal(db.pragma('user_version', { simple: true }), 5)
 
   const pet = db.prepare('SELECT * FROM pets').get()
   assert.equal(pet.user_id, 1, 'la mascota se asigna al primer usuario')

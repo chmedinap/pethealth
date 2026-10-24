@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Pencil, Trash2, Syringe, AlertTriangle, Clock, CheckCircle2, Check, X } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import { createVaccine, updateVaccine, deleteVaccine } from '../api'
-import { formatDate, todayISO } from '../utils/format'
+import { formatDate, formatMoney, todayISO } from '../utils/format'
+import { useAuth } from '../context/AuthContext'
+import VetInput from './VetInput'
 import { vaccineStatus, latestDoseIds, COMMON_VACCINES } from '../utils/vaccines'
 import { useFeedback } from '../context/FeedbackContext'
 
-const EMPTY = { name: '', date_given: '', next_due_date: '', vet_name: '', batch_number: '', notes: '' }
+const EMPTY = { name: '', date_given: '', next_due_date: '', vet_name: '', batch_number: '', notes: '', cost: '' }
 
 function StatusPill({ status, t }) {
   const tv = t.vaccines
@@ -49,7 +51,7 @@ function VaccineForm({ initial, species, onSave, onCancel, t }) {
         </div>
         <div className="field">
           <label>{tv.vet}</label>
-          <input className="input" value={form.vet_name} onChange={e => set('vet_name', e.target.value)} />
+          <VetInput value={form.vet_name} onChange={v => set('vet_name', v)} />
         </div>
         <div className="field">
           <label>{tv.dateGiven} <span className="req">*</span></label>
@@ -62,6 +64,10 @@ function VaccineForm({ initial, species, onSave, onCancel, t }) {
         <div className="field">
           <label>{tv.batch}</label>
           <input className="input" value={form.batch_number} onChange={e => set('batch_number', e.target.value)} />
+        </div>
+        <div className="field">
+          <label>{t.common.cost}</label>
+          <input className="input" type="number" min="0" step="0.01" inputMode="decimal" placeholder={t.common.costPlaceholder} value={form.cost} onChange={e => set('cost', e.target.value)} />
         </div>
         <div className="field">
           <label>{tv.notes}</label>
@@ -80,6 +86,7 @@ function VaccineForm({ initial, species, onSave, onCancel, t }) {
 export default function VaccineList({ pet, vaccines, setVaccines, canEdit, addRequest = 0 }) {
   const { t, lang } = useLanguage()
   const { askConfirm, toast } = useFeedback()
+  const { user } = useAuth()
   const tv = t.vaccines
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -145,6 +152,7 @@ export default function VaccineList({ pet, vaccines, setVaccines, canEdit, addRe
                     {v.next_due_date && <> · {tv.nextDueShort} {formatDate(v.next_due_date, lang)}</>}
                     {v.vet_name && <> · {v.vet_name}</>}
                     {v.batch_number && <> · {tv.batchShort} {v.batch_number}</>}
+                    {v.cost != null && <> · {formatMoney(v.cost, user?.currency, lang)}</>}
                   </div>
                   {v.notes && <div className="meta">{v.notes}</div>}
                 </div>

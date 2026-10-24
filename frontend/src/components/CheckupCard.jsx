@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { ChevronDown, Stethoscope, Pencil, X, Check, Pill, Calendar, Paperclip } from 'lucide-react'
+import { ChevronDown, Stethoscope, Pencil, X, Check, Pill, Calendar, Paperclip, Phone } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
 import {
   deleteCheckup, updateCheckup, uploadCheckupAttachment,
   createMedication, updateMedication, deleteMedication,
 } from '../api'
-import { formatDate, relativeDate, todayISO } from '../utils/format'
+import { formatDate, formatMoney, relativeDate, todayISO } from '../utils/format'
+import { useAuth } from '../context/AuthContext'
+import VetInput, { useVets } from './VetInput'
+import MedicationDoses from './MedicationDoses'
 import Attachments from './Attachments'
 import MedicationForm, { toMedicationDraft, medicationPayload, validateMedications } from './MedicationForm'
 import { useFeedback } from '../context/FeedbackContext'
@@ -25,6 +28,7 @@ function formFromCheckup(checkup) {
     diagnosis: checkup.diagnosis || '',
     observations: checkup.observations || '',
     next_visit_date: checkup.next_visit_date || '',
+    cost: checkup.cost ?? '',
   }
 }
 
@@ -51,6 +55,9 @@ async function syncMedications(checkupId, original, drafts) {
 export default function CheckupCard({ checkup, index = 0, canEdit = true, onDelete, onUpdate }) {
   const { t, lang } = useLanguage()
   const { askConfirm, toast } = useFeedback()
+  const { user } = useAuth()
+  const vets = useVets()
+  const vet = vets.find(v => v.name.toLowerCase() === (checkup.vet_name || '').trim().toLowerCase())
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -154,12 +161,19 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
                 /* Edit form */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <LabelInput label={t.addCheckup.vet} value={editForm.vet_name} onChange={v => setField('vet_name', v)} />
+                    <div>
+                      <label style={labelStyle}>{t.addCheckup.vet}</label>
+                      <VetInput className="" style={inputStyle} value={editForm.vet_name} onChange={v => setField('vet_name', v)}
+                        onPick={v => { if (v.clinic && !editForm.clinic_name.trim()) setField('clinic_name', v.clinic) }} />
+                    </div>
                     <LabelInput label={t.addCheckup.clinic} value={editForm.clinic_name} onChange={v => setField('clinic_name', v)} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <LabelInput label={t.addCheckup.date} type="date" value={editForm.checkup_date} onChange={v => setField('checkup_date', v)} />
                     <LabelInput label={t.addCheckup.nextVisit} type="date" value={editForm.next_visit_date} onChange={v => setField('next_visit_date', v)} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <LabelInput label={t.common.cost} type="number" value={editForm.cost} onChange={v => setField('cost', v)} />
                   </div>
                   <LabelInput label={t.checkup.reason} textarea value={editForm.reason} onChange={v => setField('reason', v)} />
                   <LabelInput label={t.checkup.diagnosis} textarea value={editForm.diagnosis} onChange={v => setField('diagnosis', v)} />
@@ -195,6 +209,18 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
                         <div className="v">{checkup.clinic_name}</div>
                       </div>
                     )}
+                    {checkup.cost != null && (
+                      <div>
+                        <div className="k">{t.common.cost}</div>
+                        <div className="v">{formatMoney(checkup.cost, user?.currency, lang)}</div>
+                      </div>
+                    )}
+                    {vet?.phone && (
+                      <div>
+                        <div className="k">{checkup.vet_name}</div>
+                        <div className="v"><a className="link-btn" href={`tel:${vet.phone.replace(/\s+/g, '')}`}><Phone size={13} /> {vet.phone}</a></div>
+                      </div>
+                    )}
                   </div>
 
                   {checkup.observations && (
@@ -227,6 +253,7 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
                               {med.duration_days != null && ` · ${med.duration_days} ${t.common.days}`}
                               {med.notes && ` · ${med.notes}`}
                             </div>
+                            <MedicationDoses medication={med} canEdit={canEdit} onChange={stats => onUpdate({ ...checkup, attachments, medications: medications.map(m => (m.id === med.id ? { ...m, ...stats } : m)) })} />
                           </div>
                         </div>
                       ))}
@@ -259,10 +286,12 @@ export default function CheckupCard({ checkup, index = 0, canEdit = true, onDele
   )
 }
 
+const labelStyle = { display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--text-3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.06em' }
+
 function LabelInput({ label, value, onChange, type = 'text', textarea = false, rows = 2 }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: 'var(--text-3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+      <label style={labelStyle}>
         {label}
       </label>
       {textarea

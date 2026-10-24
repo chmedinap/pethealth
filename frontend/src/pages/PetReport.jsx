@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { useLanguage } from '../context/LanguageContext'
-import { getPet, getPetCheckups, getPetExams, getPetVaccines, getPetWeights } from '../api'
+import { getPet, getPetCheckups, getPetExams, getPetVaccines, getPetWeights, getPetParasites, getPetConditions } from '../api'
+import { latestParasiteIds, parasiteStatus } from '../utils/parasites'
 import { calcAge, formatDate, todayISO } from '../utils/format'
 import { speciesLabel } from '../utils/species'
 import { vaccineStatus, latestDoseIds } from '../utils/vaccines'
@@ -19,9 +20,10 @@ export default function PetReport() {
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    Promise.all([getPet(id), getPetCheckups(id), getPetExams(id), getPetVaccines(id), getPetWeights(id)])
-      .then(([pet, checkups, exams, vaccines, weights]) => setData({
+    Promise.all([getPet(id), getPetCheckups(id), getPetExams(id), getPetVaccines(id), getPetWeights(id), getPetParasites(id), getPetConditions(id)])
+      .then(([pet, checkups, exams, vaccines, weights, parasites, conditions]) => setData({
         pet: pet.data, checkups: checkups.data, exams: exams.data, vaccines: vaccines.data, weights: weights.data,
+        parasites: parasites.data, conditions: conditions.data,
       }))
       .catch(err => { if (err.response?.status === 404) setNotFound(true) })
   }, [id])
@@ -34,7 +36,8 @@ export default function PetReport() {
   if (notFound) return <Navigate to="/" replace />
   if (!data) return <p style={{ textAlign: 'center', paddingTop: 40, color: 'var(--text-3)' }}>{t.common.loading}</p>
 
-  const { pet, checkups, exams, vaccines, weights } = data
+  const { pet, checkups, exams, vaccines, weights, parasites, conditions } = data
+  const latestParasites = latestParasiteIds(parasites)
   const fd = d => formatDate(d, lang) || '—'
   const latestVaccines = latestDoseIds(vaccines)
   const genderLabel = pet.gender === 'male' ? t.common.male : pet.gender === 'female' ? t.common.female : null
@@ -69,6 +72,22 @@ export default function PetReport() {
           {pet.notes && <p style={{ marginTop: 12 }}><strong>{t.profile.notes}:</strong> {pet.notes}</p>}
         </header>
 
+        {/* Lo primero que debe ver otro veterinario */}
+        {conditions.length > 0 && (
+          <section className="report-alert">
+            <h2>{tr.conditions}</h2>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {conditions.map(c => (
+                <li key={c.id}>
+                  <strong>{c.kind === 'allergy' ? `⚠ ${t.conditions.allergy}` : t.conditions.chronic}: {c.name}</strong>
+                  {c.since && ` · ${t.conditions.since} ${fd(c.since)}`}
+                  {c.notes && ` — ${c.notes}`}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section>
           <h2>{t.profile.vaccinesTitle}</h2>
           {vaccines.length === 0 ? <p className="muted">{tr.none}</p> : (
@@ -87,6 +106,25 @@ export default function PetReport() {
                     </tr>
                   )
                 })}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section>
+          <h2>{tr.parasites}</h2>
+          {parasites.length === 0 ? <p className="muted">{tr.none}</p> : (
+            <table>
+              <thead><tr><th>{t.parasites.product}</th><th>{t.parasites.kind}</th><th>{t.parasites.dateGiven}</th><th>{t.parasites.nextDue}</th></tr></thead>
+              <tbody>
+                {parasites.map(p => (
+                  <tr key={p.id}>
+                    <td>{p.product}</td>
+                    <td>{t.parasites.kinds[p.kind]}</td>
+                    <td>{fd(p.date_given)}</td>
+                    <td>{p.next_due_date ? fd(p.next_due_date) : '—'}{latestParasites.has(p.id) && parasiteStatus(p) === 'overdue' && ` ⚠ ${t.vaccines.statusOverdue}`}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}

@@ -20,6 +20,15 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(user))
   }
 
+  // Cambios de preferencias (moneda) sin emitir un token nuevo
+  function updateUser(changes) {
+    setUser(prev => {
+      const next = { ...prev, ...changes }
+      localStorage.setItem('user', JSON.stringify(next))
+      return next
+    })
+  }
+
   // Al abrir la app con una sesión guardada se renueva el token y la cookie
   // httpOnly que usan las fotos y archivos (sesiones previas no la tenían).
   useEffect(() => {
@@ -40,7 +49,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, sessionReady, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, sessionReady, isAuthenticated: !!token }}>
       {children}
     </AuthContext.Provider>
   )

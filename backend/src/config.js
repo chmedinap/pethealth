@@ -29,4 +29,17 @@ module.exports = {
   BACKUP_DIR: path.join(DATA_DIR, 'backups'),
   BACKUP_INTERVAL_HOURS: intEnv('BACKUP_INTERVAL_HOURS', 24),
   BACKUP_KEEP: intEnv('BACKUP_KEEP', 7),
+  // Correo de recordatorios. Sin SMTP_HOST no se envía nada.
+  SMTP: {
+    host: process.env.SMTP_HOST || '',
+    port: intEnv('SMTP_PORT', 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  },
+  // Hora local (0–23) a partir de la cual se envía el resumen diario
+  NOTIFY_HOUR: Math.min(intEnv('NOTIFY_HOUR', 8), 23),
+  // URL pública de la app, para los enlaces de los correos (opcional)
+  APP_URL: (process.env.APP_URL || '').replace(/\/+$/, ''),
 }

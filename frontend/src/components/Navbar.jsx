@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PawPrint, LogOut, Moon, Sun, ChevronDown, User, Languages } from 'lucide-react'
+import { PawPrint, LogOut, Moon, Sun, ChevronDown, User, Languages, Stethoscope } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLanguage } from '../context/LanguageContext'
 import { useTheme } from '../context/ThemeContext'
+import { updateMe } from '../api'
 
 export default function Navbar() {
   const { user, logout } = useAuth()
@@ -14,6 +15,12 @@ export default function Navbar() {
   const menuRef = useRef(null)
 
   const initial = user?.username?.[0]?.toUpperCase() || '?'
+
+  // El idioma también se guarda en la cuenta: lo usan los correos y el calendario
+  function changeLang(next) {
+    setLang(next)
+    if (user && !user.mustChangePassword) updateMe({ lang: next }).catch(() => {})
+  }
 
   // Cierra el menú de cuenta al hacer clic fuera o con Escape
   useEffect(() => {
@@ -71,12 +78,15 @@ export default function Navbar() {
               <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); navigate('/account') }}>
                 <User size={17} /> {t.nav.account}
               </button>
+              <button role="menuitem" className="acct-item" onClick={() => { setOpen(false); navigate('/vets') }}>
+                <Stethoscope size={17} /> {t.nav.vets}
+              </button>
               <div className="acct-item acct-static">
                 <Languages size={17} />
                 <span style={{ flex: 1 }}>{t.login.language}</span>
                 <span className="seg">
-                  <button data-on={lang === 'es' ? '1' : '0'} onClick={() => setLang('es')}>ES</button>
-                  <button data-on={lang === 'en' ? '1' : '0'} onClick={() => setLang('en')}>EN</button>
+                  <button data-on={lang === 'es' ? '1' : '0'} onClick={() => changeLang('es')}>ES</button>
+                  <button data-on={lang === 'en' ? '1' : '0'} onClick={() => changeLang('en')}>EN</button>
                 </span>
               </div>
               <div className="acct-sep" />

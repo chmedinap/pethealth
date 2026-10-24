@@ -1,14 +1,143 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, KeyRound, Check, User, ShieldAlert, LogOut } from 'lucide-react'
+import { ArrowLeft, KeyRound, Check, User, ShieldAlert, LogOut, Mail, CalendarDays, Wallet, Copy, ExternalLink, RefreshCw } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
-import { getMe, changePassword, revokeOtherSessions } from '../api'
-import { formatDate } from '../utils/format'
+import { getMe, changePassword, revokeOtherSessions, updateMe, createCalendarToken, deleteCalendarToken, sendTestEmail } from '../api'
+import { copyText, formatDate, todayISO } from '../utils/format'
 import { useFeedback } from '../context/FeedbackContext'
 
 const MIN_PASSWORD = 8
+const CURRENCIES = ['USD', 'EUR', 'COP', 'MXN', 'ARS', 'CLP', 'PEN', 'BRL', 'UYU', 'GBP', 'CAD']
+
+function SectionHead({ icon: Icon, title, sub }) {
+  return (
+    <div className="fsection-head">
+      <div className="fsection-num"><Icon size={16} /></div>
+      <div>
+        <h3 className="t-h3">{title}</h3>
+        {sub && <p>{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// Preferencias, recordatorios por correo y calendario: secciones que guardan por separado
+function CareSettings({ me, setMe, t, lang }) {
+  const ta = t.account
+  const { askConfirm, toast } = useFeedback()
+  const { updateUser } = useAuth()
+  const [currency, setCurrency] = useState(me.currency)
+  const [email, setEmail] = useState(me.email || '')
+  const [notify, setNotify] = useState(me.notifyEmail)
+  const [notifyMsg, setNotifyMsg] = useState('')
+  const [busy, setBusy] = useState('')
+
+  async function run(key, fn) {
+    setBusy(key)
+    try { await fn() } catch (err) { toast(err.response?.data?.error || t.common.error500) } finally { setBusy('') }
+  }
+
+  const saveCurrency = () => run('currency', async () => {
+    const res = await updateMe({ currency })
+    setMe(res.data)
+    updateUser({ currency: res.data.currency })
+    toast(ta.prefsSaved, 'success')
+  })
+
+  const saveNotify = e => {
+    e.preventDefault()
+    setNotifyMsg('')
+    if (notify && !email.trim()) { setNotifyMsg(ta.emailRequired); return }
+    return run('notify', async () => {
+      const res = await updateMe({ email, notify_email: notify, lang })
+      setMe(res.data)
+      toast(ta.prefsSaved, 'success')
+    })
+  }
+
+  const testEmail = () => run('test', async () => {
+    await sendTestEmail(todayISO())
+    toast(ta.testEmailSent, 'success')
+  })
+
+  const calendarUrl = me.calendarToken ? `${window.location.origin}/api/calendar/${me.calendarToken}.ics` : null
+  const enableCalendar = () => run('calendar', async () => {
+    // El feed usa el idioma de la cuenta
+    await updateMe({ lang })
+    setMe((await createCalendarToken()).data)
+  })
+  const regenerate = async () => {
+    if (!await askConfirm(ta.calendarRegenerateConfirm)) return
+    run('calendar', async () => setMe((await createCalendarToken()).data))
+  }
+  const disable = async () => {
+    if (!await askConfirm(ta.calendarDisableConfirm)) return
+    run('calendar', async () => setMe((await deleteCalendarToken()).data))
+  }
+  const copy = () => run('copy', async () => { await copyText(calendarUrl); toast(ta.calendarCopied, 'success') })
+
+  return (
+    <>
+      <div className="fsection">
+        <SectionHead icon={Wallet} title={ta.prefsTitle} sub={ta.prefsSub} />
+        <div className="inline-row">
+          <div className="field" style={{ minWidth: 160 }}>
+            <label>{ta.currency}</label>
+            <select className="input" value={currency} onChange={e => setCurrency(e.target.value)}>
+              {[...new Set([me.currency, ...CURRENCIES])].map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={saveCurrency} disabled={busy === 'currency' || currency === me.currency}>
+            <Check size={15} /> {ta.saveBtn}
+          </button>
+        </div>
+      </div>
+
+      <form className="fsection" onSubmit={saveNotify}>
+        <SectionHead icon={Mail} title={ta.notifyTitle} sub={ta.notifySub} />
+        {!me.emailEnabled && <p className="notice notice-warning" style={{ margin: '0 0 12px' }}>{ta.notifyDisabled}</p>}
+        <div className="field">
+          <label>{ta.email}</label>
+          <input className="input" type="email" autoComplete="email" placeholder={ta.emailPlaceholder} value={email} onChange={e => setEmail(e.target.value)} />
+        </div>
+        <label className="check-row">
+          <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} disabled={!me.emailEnabled} />
+          {ta.notifyToggle}
+        </label>
+        {notifyMsg && <p className="form-error">⚠️ {notifyMsg}</p>}
+        <div className="inline-row" style={{ justifyContent: 'flex-end' }}>
+          {me.emailEnabled && me.email && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={testEmail} disabled={busy === 'test'}>{ta.testEmail}</button>
+          )}
+          <button type="submit" className="btn btn-primary btn-sm" disabled={busy === 'notify'}><Check size={15} /> {ta.saveBtn}</button>
+        </div>
+      </form>
+
+      <div className="fsection">
+        <SectionHead icon={CalendarDays} title={ta.calendarTitle} sub={ta.calendarSub} />
+        {calendarUrl ? (
+          <>
+            <div className="copy-field">
+              <input className="input" readOnly value={calendarUrl} onFocus={e => e.target.select()} aria-label={ta.calendarTitle} />
+              <button className="btn btn-primary btn-sm" onClick={copy}><Copy size={15} /> {ta.calendarCopy}</button>
+            </div>
+            <p className="hint" style={{ margin: '8px 0 0' }}>{ta.calendarGoogle}</p>
+            <p className="hint" style={{ margin: '4px 0 12px' }}>🔒 {ta.calendarPrivate}</p>
+            <div className="inline-row">
+              <a className="btn btn-ghost btn-sm" href={calendarUrl.replace(/^https?:/, 'webcal:')}><ExternalLink size={15} /> {ta.calendarOpen}</a>
+              <button className="btn btn-ghost btn-sm" onClick={regenerate} disabled={busy === 'calendar'}><RefreshCw size={15} /> {ta.calendarRegenerate}</button>
+              <button className="link-danger" onClick={disable} disabled={busy === 'calendar'}>{ta.calendarDisable}</button>
+            </div>
+          </>
+        ) : (
+          <button className="btn btn-primary btn-sm" onClick={enableCalendar} disabled={busy === 'calendar'}><CalendarDays size={15} /> {ta.calendarEnable}</button>
+        )}
+      </div>
+    </>
+  )
+}
 
 export default function Account() {
   const navigate = useNavigate()
@@ -134,6 +263,8 @@ export default function Account() {
               </button>
             </div>
           </form>
+
+          {!mustChange && me && <CareSettings me={me} setMe={setMe} t={t} lang={lang} />}
 
           {!mustChange && (
             <div className="fsection">

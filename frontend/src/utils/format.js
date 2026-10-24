@@ -67,3 +67,22 @@ export async function copyText(text) {
   document.body.removeChild(el)
   if (!ok) throw new Error('copy failed')
 }
+
+// Hora local 'HH:MM' (para registrar dosis)
+export function nowTime() {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// 1234.5 → "$1,234.50" / "1.234,50 €" según idioma y moneda. Sin decimales si es entero.
+export function formatMoney(amount, currency = 'USD', lang = 'es') {
+  if (amount == null || amount === '') return null
+  const n = Number(amount)
+  try {
+    return n.toLocaleString(LOCALES[lang] || LOCALES.es, {
+      style: 'currency', currency, minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2,
+    })
+  } catch {
+    return `${n.toFixed(2)} ${currency}`
+  }
+}

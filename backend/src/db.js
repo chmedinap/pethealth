@@ -181,6 +181,66 @@ const MIGRATIONS = [
         WHERE weight_kg IS NOT NULL AND id NOT IN (SELECT pet_id FROM weight_logs);
     `)
   },
+
+  // 5 — notificaciones, calendario, dosis, antiparasitarios, condiciones, veterinarios y gastos
+  () => {
+    const addColumn = (table, column, type) => {
+      if (!hasColumn(table, column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+    }
+    addColumn('users', 'email', 'TEXT')
+    addColumn('users', 'notify_email', 'INTEGER NOT NULL DEFAULT 0')
+    addColumn('users', 'last_digest_on', 'DATE')
+    addColumn('users', 'calendar_token', 'TEXT')
+    addColumn('users', 'currency', "TEXT NOT NULL DEFAULT 'USD'")
+    addColumn('users', 'lang', "TEXT NOT NULL DEFAULT 'es'")
+    for (const table of ['checkups', 'exams', 'vaccines']) addColumn(table, 'cost', 'REAL')
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS medication_doses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        medication_id INTEGER NOT NULL REFERENCES medications(id) ON DELETE CASCADE,
+        given_on DATE NOT NULL,
+        given_time TEXT,
+        given_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS parasite_treatments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK(kind IN ('internal', 'external', 'combined')),
+        product TEXT NOT NULL,
+        date_given DATE NOT NULL,
+        next_due_date DATE,
+        cost REAL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS pet_conditions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id INTEGER NOT NULL REFERENCES pets(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK(kind IN ('allergy', 'chronic')),
+        name TEXT NOT NULL,
+        since DATE,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Directorio personal: cada usuario tiene el suyo
+      CREATE TABLE IF NOT EXISTS vets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        clinic TEXT,
+        phone TEXT,
+        email TEXT,
+        address TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `)
+  },
 ]
 
 const currentVersion = db.pragma('user_version', { simple: true })
@@ -207,6 +267,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_weight_logs_pet ON weight_logs(pet_id, measured_on);
   CREATE INDEX IF NOT EXISTS idx_vaccines_pet ON vaccines(pet_id);
   CREATE INDEX IF NOT EXISTS idx_pet_shares_user ON pet_shares(user_id);
+  CREATE INDEX IF NOT EXISTS idx_doses_medication ON medication_doses(medication_id, given_on);
+  CREATE INDEX IF NOT EXISTS idx_parasites_pet ON parasite_treatments(pet_id);
+  CREATE INDEX IF NOT EXISTS idx_conditions_pet ON pet_conditions(pet_id);
+  CREATE INDEX IF NOT EXISTS idx_vets_user ON vets(user_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_calendar_token ON users(calendar_token);
 
   -- attachments es polimórfica (sin FK), así que sus filas se limpian con triggers.
   -- Los triggers también se disparan con los ON DELETE CASCADE desde pets.

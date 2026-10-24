@@ -28,7 +28,7 @@ export default function AddExam() {
   const { t, lang } = useLanguage()
   const pdfInputRef = useRef(null)
 
-  const [form, setForm] = useState({ exam_type: '', exam_date: todayISO(), lab_name: '', checkup_id: '', notes: '' })
+  const [form, setForm] = useState({ exam_type: '', exam_date: todayISO(), lab_name: '', checkup_id: '', notes: '', cost: '' })
   const [pdfFile, setPdfFile] = useState(null)
   const [values, setValues] = useState([])
   const [checkups, setCheckups] = useState([])
@@ -70,6 +70,7 @@ export default function AddExam() {
       if (form.lab_name) fd.append('lab_name', form.lab_name)
       if (form.checkup_id) fd.append('checkup_id', form.checkup_id)
       if (form.notes) fd.append('notes', form.notes)
+      if (form.cost !== '') fd.append('cost', form.cost)
       if (pdfFile) fd.append('pdf', pdfFile)
       if (values.length > 0) fd.append('values', JSON.stringify(values.map(v => ({ ...v, is_abnormal: v.is_abnormal ? 1 : 0 }))))
       await createExam(petId, fd)
@@ -111,6 +112,10 @@ export default function AddExam() {
                 <input className="ex-input" style={inputStyle} type="text" placeholder={t.addExam.labPlaceholder} value={form.lab_name} onChange={e => set('lab_name', e.target.value)} />
               </Field>
             </div>
+
+            <Field label={t.common.cost}>
+              <input className="ex-input" style={inputStyle} type="number" min="0" step="0.01" inputMode="decimal" placeholder={t.common.costPlaceholder} value={form.cost} onChange={e => set('cost', e.target.value)} />
+            </Field>
 
             <Field label={t.addExam.checkupAssoc}>
               <select className="ex-input" style={inputStyle} value={form.checkup_id} onChange={e => set('checkup_id', e.target.value)}>

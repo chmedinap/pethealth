@@ -21,4 +21,21 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-module.exports = { clean, isISODate, isBlank, todayISO }
+function addDaysISO(iso, days) {
+  const [y, m, d] = iso.split('-').map(Number)
+  const date = new Date(Date.UTC(y, m - 1, d + days))
+  return date.toISOString().slice(0, 10)
+}
+
+// Costo opcional: vacío → null; si viene, un número ≥ 0
+function isValidCost(value) {
+  const v = clean(value)
+  return v === null || (Number.isFinite(Number(v)) && Number(v) >= 0)
+}
+
+function cleanCost(value) {
+  const v = clean(value)
+  return v === null ? null : Math.round(Number(v) * 100) / 100
+}
+
+module.exports = { clean, isISODate, isBlank, todayISO, addDaysISO, isValidCost, cleanCost }

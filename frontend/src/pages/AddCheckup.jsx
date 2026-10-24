@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Calendar, User, MapPin, Activity, Pill, Sparkles, Check, Stethoscope } from 'lucide-react'
+import { ArrowLeft, Calendar, User, MapPin, Activity, Pill, Sparkles, Check, Stethoscope, Wallet } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import { useLanguage } from '../context/LanguageContext'
 import { createCheckup } from '../api'
 import { todayISO } from '../utils/format'
 import MedicationForm, { medicationPayload, validateMedications } from '../components/MedicationForm'
+import VetInput from '../components/VetInput'
 
 function Field({ label, required, hint, span2, error, children }) {
   return (
@@ -45,7 +46,7 @@ export default function AddCheckup() {
 
   const [form, setForm] = useState({
     vet_name: '', clinic_name: '', checkup_date: todayISO(),
-    reason: '', diagnosis: '', observations: '', next_visit_date: '',
+    reason: '', diagnosis: '', observations: '', next_visit_date: '', cost: '',
   })
   const [medications, setMedications] = useState([])
   const [errors, setErrors] = useState({})
@@ -119,13 +120,24 @@ export default function AddCheckup() {
               <Field label={t.addCheckup.vet} required error={errors.vet_name}>
                 <div className="input-ic">
                   <User size={18} />
-                  <input className="input" placeholder={t.addCheckup.vetPlaceholder} value={form.vet_name} onChange={e => set('vet_name', e.target.value)} />
+                  <VetInput
+                    placeholder={t.addCheckup.vetPlaceholder}
+                    value={form.vet_name}
+                    onChange={v => set('vet_name', v)}
+                    onPick={vet => { if (vet.clinic && !form.clinic_name.trim()) set('clinic_name', vet.clinic) }}
+                  />
                 </div>
               </Field>
               <Field label={t.addCheckup.clinic}>
                 <div className="input-ic">
                   <MapPin size={18} />
                   <input className="input" placeholder={t.addCheckup.clinicPlaceholder} value={form.clinic_name} onChange={e => set('clinic_name', e.target.value)} />
+                </div>
+              </Field>
+              <Field label={t.common.cost}>
+                <div className="input-ic">
+                  <Wallet size={18} />
+                  <input className="input" type="number" min="0" step="0.01" inputMode="decimal" placeholder={t.common.costPlaceholder} value={form.cost} onChange={e => set('cost', e.target.value)} />
                 </div>
               </Field>
             </div>

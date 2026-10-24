@@ -1,7 +1,7 @@
 const express = require('express')
 const db = require('../db')
 const { requireAccess } = require('../access')
-const { clean, isISODate } = require('../validate')
+const { clean, isISODate, isValidCost, cleanCost } = require('../validate')
 const { uploadPdf, uploadAttachment, removeFile, removeFiles } = require('../files')
 
 const MAX_ATTACHMENTS = 3
@@ -55,10 +55,11 @@ petRouter.post('/:petId/exams', requireAccess('pet', 'editor', 'petId'), uploadP
     res.status(400).json({ error })
   }
 
-  const { exam_type, exam_date, lab_name, checkup_id, notes } = req.body
+  const { exam_type, exam_date, lab_name, checkup_id, notes, cost } = req.body
   if (!exam_type || !exam_date) return reject('exam_type y exam_date son requeridos')
   if (!isISODate(exam_date)) return reject('exam_date debe tener formato YYYY-MM-DD')
   if (!checkupBelongsToPet(checkup_id, req.pet.id)) return reject('checkup_id no pertenece a esta mascota')
+  if (!isValidCost(cost)) return reject('cost debe ser un número mayor o igual a 0')
 
   let values = []
   if (req.body.values) {
@@ -72,9 +73,9 @@ petRouter.post('/:petId/exams', requireAccess('pet', 'editor', 'petId'), uploadP
 
   const insert = db.transaction(() => {
     const result = db.prepare(`
-      INSERT INTO exams (pet_id, checkup_id, exam_type, exam_date, lab_name, pdf_url, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(req.pet.id, clean(checkup_id), exam_type, exam_date, clean(lab_name), pdf_url, clean(notes))
+      INSERT INTO exams (pet_id, checkup_id, exam_type, exam_date, lab_name, pdf_url, notes, cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(req.pet.id, clean(checkup_id), exam_type, exam_date, clean(lab_name), pdf_url, clean(notes), cleanCost(cost))
 
     const examId = result.lastInsertRowid
     const insertVal = db.prepare(`
@@ -99,7 +100,7 @@ examRouter.get('/:id', requireAccess('exam', 'viewer'), (req, res) => {
 })
 
 examRouter.put('/:id', requireAccess('exam', 'editor'), (req, res) => {
-  const allowed = ['exam_type', 'exam_date', 'lab_name', 'checkup_id', 'notes']
+  const allowed = ['exam_type', 'exam_date', 'lab_name', 'checkup_id', 'notes', 'cost']
   const fields = Object.keys(req.body).filter(k => allowed.includes(k))
   if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' })
   for (const required of ['exam_type', 'exam_date']) {
@@ -113,9 +114,11 @@ examRouter.put('/:id', requireAccess('exam', 'editor'), (req, res) => {
   if (fields.includes('checkup_id') && !checkupBelongsToPet(req.body.checkup_id, req.exam.pet_id)) {
     return res.status(400).json({ error: 'checkup_id no pertenece a esta mascota' })
   }
+  if (!isValidCost(req.body.cost)) return res.status(400).json({ error: 'cost debe ser un número mayor o igual a 0' })
 
+  const value = f => (f === 'cost' ? cleanCost(req.body.cost) : clean(req.body[f]))
   const setClause = fields.map(f => `${f} = ?`).join(', ')
-  db.prepare(`UPDATE exams SET ${setClause} WHERE id = ?`).run(...fields.map(f => clean(req.body[f])), req.exam.id)
+  db.prepare(`UPDATE exams SET ${setClause} WHERE id = ?`).run(...fields.map(value), req.exam.id)
 
   res.json(fullExam(db.prepare('SELECT * FROM exams WHERE id = ?').get(req.exam.id)))
 })

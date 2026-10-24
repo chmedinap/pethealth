@@ -8,6 +8,7 @@ function publicUser(user) {
     id: user.id,
     username: user.username,
     mustChangePassword: !!user.must_change_password,
+    currency: user.currency || 'USD',
   }
 }
 

@@ -11,6 +11,7 @@ import AddCheckup from './pages/AddCheckup'
 import AddExam from './pages/AddExam'
 import Account from './pages/Account'
 import PetReport from './pages/PetReport'
+import Vets from './pages/Vets'
 
 function PrivateRoute() {
   const { isAuthenticated, sessionReady, user } = useAuth()
@@ -35,6 +36,7 @@ function AppRoutes() {
         <Route path="/pets/:id/exams/new" element={<AddExam />} />
         <Route path="/pets/:id/report" element={<PetReport />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/vets" element={<Vets />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

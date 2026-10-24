@@ -8,11 +8,16 @@ require('./db')
 const authRouter = require('./routes/auth')
 const usersRouter = require('./routes/users')
 const petsRouter = require('./routes/pets')
-const { petRouter: checkupPetRouter, checkupRouter, medicationRouter } = require('./routes/checkups')
+const { petRouter: checkupPetRouter, checkupRouter, medicationRouter, doseRouter } = require('./routes/checkups')
 const { petRouter: examPetRouter, examRouter, examValueRouter } = require('./routes/exams')
 const { petRouter: vaccinePetRouter, vaccineRouter } = require('./routes/vaccines')
 const { petRouter: weightPetRouter, weightRouter } = require('./routes/weights')
+const { petRouter: parasitePetRouter, parasiteRouter } = require('./routes/parasites')
+const { petRouter: conditionPetRouter, conditionRouter } = require('./routes/conditions')
 const remindersRouter = require('./routes/reminders')
+const vetsRouter = require('./routes/vets')
+const calendarRouter = require('./routes/calendar')
+const transferRouter = require('./routes/transfer')
 const attachmentsRouter = require('./routes/attachments')
 const { authMiddleware, fileAuthMiddleware } = require('./middleware/auth')
 const { canReadFile } = require('./access')
@@ -67,11 +72,14 @@ app.use('/api/auth', authRouter)
 app.use('/api/users', authMiddleware, usersRouter)
 
 // /api/pets — mascotas + sub-recursos anidados por mascota
+app.use('/api/pets', authMiddleware, transferRouter)     // /api/pets/import, /api/pets/:id/export
 app.use('/api/pets', authMiddleware, petsRouter)
 app.use('/api/pets', authMiddleware, checkupPetRouter)   // /api/pets/:petId/checkups
 app.use('/api/pets', authMiddleware, examPetRouter)      // /api/pets/:petId/exams
 app.use('/api/pets', authMiddleware, vaccinePetRouter)   // /api/pets/:petId/vaccines
 app.use('/api/pets', authMiddleware, weightPetRouter)    // /api/pets/:petId/weights
+app.use('/api/pets', authMiddleware, parasitePetRouter)  // /api/pets/:petId/parasites
+app.use('/api/pets', authMiddleware, conditionPetRouter) // /api/pets/:petId/conditions
 
 // Operaciones sobre registros individuales
 app.use('/api/checkups', authMiddleware, checkupRouter)
@@ -80,10 +88,17 @@ app.use('/api/exams', authMiddleware, examRouter)
 app.use('/api/exam-values', authMiddleware, examValueRouter)
 app.use('/api/vaccines', authMiddleware, vaccineRouter)
 app.use('/api/weights', authMiddleware, weightRouter)
+app.use('/api/doses', authMiddleware, doseRouter)
+app.use('/api/parasites', authMiddleware, parasiteRouter)
+app.use('/api/conditions', authMiddleware, conditionRouter)
+app.use('/api/vets', authMiddleware, vetsRouter)
 app.use('/api/attachments', authMiddleware, attachmentsRouter)
 
 // Recordatorios de todas las mascotas del usuario
 app.use('/api/reminders', authMiddleware, remindersRouter)
+
+// Feed .ics: sin header de autenticación (lo piden las apps de calendario), usa un token en la URL
+app.use('/api/calendar', calendarRouter)
 
 // Rutas de API inexistentes → JSON, no el index.html de la SPA
 app.use('/api', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }))
@@ -101,7 +116,7 @@ app.get('*', (req, res, next) => {
 // ── Error handler global ──────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   // Si multer ya escribió el archivo antes del error, se elimina
-  if (req.file) fs.unlink(req.file.path, () => {})
+  if (req.file?.path) fs.unlink(req.file.path, () => {})
 
   if (err instanceof UploadError) return res.status(err.status).json({ error: err.message })
   if (err instanceof multer.MulterError) {

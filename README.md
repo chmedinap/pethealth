@@ -12,6 +12,15 @@ Web application for tracking your pets' medical history. Record vet visits, medi
 - **Lab exams** — values, PDFs, attachments, and a **trend chart** for any parameter measured more than once (with its reference range)
 - **Vaccines** — doses and boosters with status (up to date / due soon / overdue)
 - **Weight history** — chart and log; the pet's current weight is always the latest entry
+- **Parasite control** — internal, external and combined treatments with next-dose reminders
+- **Dose tracking** — log each dose of an active treatment (who and when) right from the dashboard; the daily target comes from the frequency ("every 8 hours" → 3)
+- **Allergies & chronic conditions** — highlighted on the profile, the summary and the printable report
+- **Expenses** — optional cost on checkups, exams, vaccines and parasite treatments, with totals per pet and per year
+- **Timeline** — every record of a pet in a single chronological view
+- **Vet directory** — personal list of vets and clinics (phone, email, address) that autocompletes forms; can be imported from your history
+- **Email reminders** — a digest when something is due in 7 days, tomorrow, today, or has been overdue for 3 days (needs SMTP)
+- **Calendar feed** — private `.ics` link to subscribe from Google Calendar, Apple Calendar or Outlook
+- **Export / import** — move a pet with its full history and files between accounts or installations as a ZIP
 - **Printable report** — full medical history, ready to "Save as PDF" for a new vet
 - **Sharing** — give another user view-only or edit access to a pet
 - **Species** — dogs, cats, birds, rabbits, rodents, ferrets, reptiles, fish, horses and more
@@ -118,6 +127,14 @@ services:
       - BACKUP_KEEP=${BACKUP_KEEP:-7}
       - TZ=${TZ:-UTC}
       - SEED_DEMO=${SEED_DEMO:-true}
+      - APP_URL=${APP_URL:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - NOTIFY_HOUR=${NOTIFY_HOUR:-8}
 ```
 
 > Variables are read from the `.env` file in the same folder. Compose refuses to start if `JWT_SECRET` is missing.
@@ -137,6 +154,12 @@ services:
 | `BACKUP_INTERVAL_HOURS` | Hours between automatic database backups (`0` disables) | No (default: `24`) |
 | `BACKUP_KEEP` | Number of backups to keep | No (default: `7`) |
 | `SEED_DEMO` | Load 4 demo pets on first start (`false` to start empty) | No (default: `true`) |
+| `APP_URL` | Public URL of the app, used for links in emails and calendar events (e.g. `https://pets.example.com`) | No |
+| `SMTP_HOST` | SMTP server for email reminders. Without it, email is turned off | No |
+| `SMTP_PORT` / `SMTP_SECURE` | SMTP port, and `true` for implicit TLS (port 465) | No (default: `587` / `false`) |
+| `SMTP_USER` / `SMTP_PASS` | SMTP credentials (for Gmail, use an app password) | No |
+| `SMTP_FROM` | Sender address, e.g. `PetHealth <pets@example.com>` | No (default: `SMTP_USER`) |
+| `NOTIFY_HOUR` | Local hour (0–23) from which the daily digest is sent | No (default: `8`) |
 | `TZ` | Server time zone (e.g. `America/Bogota`) | No (default: `UTC`) |
 | `DATA_DIR` | Where the database, uploads and backups live | No (default: `/app/data` in Docker, `backend/data` locally) |
 
@@ -181,19 +204,23 @@ pethealth/
 │       ├── files.js           # Upload validation, random file names, safe deletion
 │       ├── middleware/
 │       │   └── auth.js        # JWT verification (Bearer for API, cookie for files)
-│       └── routes/            # auth, users, pets, checkups, exams, vaccines, weights, reminders, attachments
-│   └── test/                  # API, access, migration, backup and rate-limit tests (node:test + supertest)
-├── frontend/
-│   ├── package.json
-│   └── src/
-│       ├── index.css          # Design tokens, component classes, dark mode
-│       ├── translations.js    # UI strings (ES / EN)
-│       ├── utils/             # dates, species, vaccines, lab parsing, chart ticks (+ Vitest tests)
-│       ├── App.jsx
-│       ├── context/           # AuthContext, ThemeContext, LanguageContext
-│       ├── pages/             # Login, Dashboard, PetProfile, PetReport, AddPet, AddCheckup, AddExam, Account
-│       └── components/        # PetCard, CheckupCard, ExamViewer, VaccineList, WeightPanel, LineChart, RemindersPanel, …
-└── pethealth-desing/          # Standalone HTML prototype of the redesign
+│       ├── reminders.js       # Due items shared by the dashboard, email digest and calendar feed
+│       ├── notify.js          # Daily email digest (nodemailer)
+│       ├── ics.js             # iCalendar feed builder
+│       └── routes/            # auth, users, pets, checkups (+ doses), exams, vaccines, parasites, conditions,
+│                              # weights, vets, reminders, calendar, transfer (export/import), attachments
+│   └── test/                  # API, access, care features, calendar/email, export/import, migration… (node:test + supertest)
+└── frontend/
+    ├── package.json
+    └── src/
+        ├── index.css          # Design tokens, component classes, dark mode
+        ├── translations.js    # UI strings (ES / EN)
+        ├── utils/             # dates, money, species, vaccines, parasites, doses, expenses, timeline, labs (+ Vitest tests)
+        ├── App.jsx
+        ├── context/           # AuthContext, ThemeContext, LanguageContext
+        ├── pages/             # Login, Dashboard, PetProfile, PetReport, AddPet, AddCheckup, AddExam, Account, Vets
+        └── components/        # PetCard, CheckupCard, ExamViewer, VaccineList, ParasiteList, ConditionsCard,
+                               # ExpensesPanel, TimelinePanel, RemindersPanel, VetInput, WeightPanel, LineChart, …
 ```
 
 ---

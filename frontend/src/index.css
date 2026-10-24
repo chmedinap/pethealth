@@ -399,7 +399,8 @@ button { font-family: inherit; }
 /* ============================================================
    PROFILE
    ============================================================ */
-.profile-grid { display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start; }
+.profile-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 24px; align-items: start; }
+.profile-grid > section { min-width: 0; }
 .back-btn {
   display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent;
   color: var(--text-2); font-weight: 800; font-size: 14px; cursor: pointer; padding: 6px 4px; margin-bottom: 14px;
@@ -825,4 +826,122 @@ button { font-family: inherit; }
 @media (max-width: 900px) {
   .reminders { grid-template-columns: 1fr; }
   .rem-col + .rem-col { border-left: 0; border-top: 1px solid var(--border); }
+}
+
+/* ============================================================
+   CUIDADOS: dosis, antiparasitarios, condiciones, gastos, línea de tiempo
+   ============================================================ */
+.btn-xs { padding: 5px 10px; font-size: 12px; border-radius: var(--r-xs); }
+.chip-xs { padding: 5px 11px; font-size: 12.5px; }
+.pill-n.is-alert { background: var(--danger-soft); color: var(--danger-ink); }
+.dash-import { white-space: nowrap; }
+.kv .k svg { vertical-align: -1px; }
+
+.rem-ic.parasite { background: color-mix(in srgb, var(--warning) 22%, var(--surface)); color: var(--warning-ink); }
+.rem-ic.exam { background: var(--accent-soft); color: var(--accent-ink); }
+.rem-ic.weight { background: var(--surface-2); color: var(--text-2); }
+.rem-ic.condition { background: var(--danger-soft); color: var(--danger-ink); }
+
+/* Dosis del día en el dashboard: el botón queda al lado de la fila */
+.rem-row { display: flex; align-items: center; gap: 8px; }
+.rem-row .rem-item { flex: 1; min-width: 0; }
+.rem-list li.rem-row + li.rem-row { border-top: 1px solid var(--border); }
+.rem-list li.rem-row .rem-item { border-top: 0; }
+.dose-btn, .dose-pill {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap;
+  border-radius: var(--r-pill); padding: 6px 11px; font: 800 12.5px var(--f-pet);
+  border: 1.5px solid var(--secondary-ink); color: var(--secondary-ink); background: var(--surface);
+}
+.dose-btn { cursor: pointer; }
+.dose-btn:hover:not(:disabled) { background: var(--secondary-soft); }
+.dose-btn.is-done, .dose-pill.is-done { border-color: transparent; background: var(--success-soft); color: var(--success-ink); }
+.dose-pill { border-style: dashed; }
+
+/* Historial de dosis dentro de la consulta */
+.doses { margin-top: 6px; font-size: 12.5px; font-weight: 600; }
+.doses-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.doses-toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 0; color: var(--primary-ink); font: 800 12.5px var(--f-pet); cursor: pointer; }
+.doses-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 180px; overflow-y: auto; }
+.doses-list li { display: flex; align-items: center; gap: 10px; padding: 3px 0; border-top: 1px solid var(--border); }
+.doses-list li:first-child { border-top: 0; }
+.doses-list li > span:first-child { font-variant-numeric: tabular-nums; min-width: 120px; }
+.doses-list .icon-sm { width: 26px; height: 26px; margin-left: auto; }
+
+/* Antiparasitarios: atajos para la próxima dosis */
+.quick-picks { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--text-3); font-weight: 700; margin-top: 4px; }
+
+/* Alergias y condiciones (hero del perfil) */
+.conditions { margin: 0 0 16px; }
+.conditions-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.conditions .fgrid { grid-template-columns: 1fr; }
+.cond-group + .cond-group { margin-top: 10px; }
+.cond-kind { display: flex; align-items: center; gap: 5px; font: 800 11px/1 var(--f-pet); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.cond-kind.cond-allergy { color: var(--danger-ink); }
+.cond-kind.cond-chronic { color: var(--accent-ink); }
+.cond-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cond-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: var(--r-pill); padding: 4px 10px; font-size: 13px; font-weight: 800; }
+.cond-chip.cond-allergy { background: var(--danger-soft); color: var(--danger-ink); }
+.cond-chip.cond-chronic { background: var(--accent-soft); color: var(--accent-ink); }
+.cond-chip button { display: grid; place-items: center; border: 0; background: none; color: inherit; padding: 0; cursor: pointer; opacity: .7; }
+.cond-chip button:hover { opacity: 1; }
+.cond-notes { margin: 6px 0 0; padding-left: 16px; font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+
+/* Gastos */
+.exp-years { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.exp-years li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
+.exp-year { font-weight: 800; font-variant-numeric: tabular-nums; }
+.exp-bar { display: flex; height: 12px; min-width: 6px; border-radius: var(--r-pill); overflow: hidden; gap: 2px; }
+.exp-seg { display: block; height: 100%; min-width: 3px; }
+.exp-total { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.exp-break { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-3); font-weight: 700; }
+.exp-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: 0; margin-right: 2px; }
+.exp-checkup { background: var(--primary); }
+.exp-exam { background: var(--accent); }
+.exp-vaccine { background: var(--secondary); }
+.exp-parasite { background: var(--warning); }
+
+/* Línea de tiempo unificada */
+.tline ol { list-style: none; margin: 0; padding: 0; }
+.tline-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 8px; border: 0; border-top: 1px solid var(--border);
+  background: none; color: inherit; font: inherit; text-align: left; border-radius: var(--r-sm); box-sizing: border-box;
+}
+.tline li:first-child .tline-item { border-top: 0; }
+button.tline-item { cursor: pointer; }
+button.tline-item:hover, button.tline-item:focus-visible { background: var(--surface-2); outline: none; }
+.tline-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tline-kind { font-size: 11.5px; font-weight: 800; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.tline-title { font-weight: 800; font-size: 14px; }
+.tline-sub { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+
+/* Veterinarios */
+.vets-tools { display: flex; justify-content: flex-end; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+.vet-contact { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 12.5px; font-weight: 700; }
+.vet-contact a, .vet-contact span { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); text-decoration: none; }
+.vet-contact a { color: var(--primary-ink); }
+.vet-contact a:hover { text-decoration: underline; }
+
+/* Cuenta */
+.inline-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.inline-row .field { flex: 0 1 auto; }
+.check-row { display: flex; align-items: center; gap: 9px; margin-top: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
+.check-row input { width: 18px; height: 18px; accent-color: var(--primary); }
+.copy-field { display: flex; gap: 8px; }
+.copy-field .input { flex: 1; min-width: 0; font-size: 12.5px; font-family: ui-monospace, Menlo, monospace; }
+
+/* Informe: alergias destacadas */
+.report-alert { border: 2px solid var(--danger); border-radius: var(--r-sm); padding: 4px 14px 12px; margin-top: 18px; break-inside: avoid; }
+.report-alert h2 { border-bottom: 0; margin-top: 10px; color: var(--danger-ink); }
+
+.kv .v a { display: inline-flex; align-items: center; gap: 4px; }
+.fsection .hint { font-size: 12.5px; color: var(--text-3); font-weight: 600; }
+
+@media (max-width: 600px) {
+  .rem-row { flex-wrap: wrap; }
+  .rem-row .rem-item { flex-basis: 100%; }
+  .rem-row .dose-btn, .rem-row .dose-pill { margin: -4px 0 10px 46px; }
+  .copy-field { flex-direction: column; }
+  .exp-years li { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .dash-import { padding-left: 12px; padding-right: 12px; }
+  .dash-import .label { display: none; }
 }

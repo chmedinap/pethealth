@@ -5,7 +5,8 @@ import {
   deleteExam, updateExam, uploadExamAttachment,
   createExamValues, updateExamValue, deleteExamValue,
 } from '../api'
-import { formatDate } from '../utils/format'
+import { formatDate, formatMoney } from '../utils/format'
+import { useAuth } from '../context/AuthContext'
 import Attachments from './Attachments'
 import { normalizeParam } from '../utils/labs'
 import { useFeedback } from '../context/FeedbackContext'
@@ -109,6 +110,7 @@ function ExamValuesEditor({ values, onChange, errors, t }) {
 export default function ExamViewer({ exam, index = 0, canEdit = true, paramCounts = {}, onShowTrend, onDelete, onUpdate }) {
   const { t, lang } = useLanguage()
   const { askConfirm, toast } = useFeedback()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -121,7 +123,7 @@ export default function ExamViewer({ exam, index = 0, canEdit = true, paramCount
   const examValues = exam.exam_values || []
 
   function startEditing() {
-    setEditForm({ exam_type: exam.exam_type || '', exam_date: exam.exam_date || '', lab_name: exam.lab_name || '', notes: exam.notes || '' })
+    setEditForm({ exam_type: exam.exam_type || '', exam_date: exam.exam_date || '', lab_name: exam.lab_name || '', notes: exam.notes || '', cost: exam.cost ?? '' })
     setValueDrafts(examValues.map(toValueDraft))
     setValueErrors({})
     setOpen(true)
@@ -190,6 +192,7 @@ export default function ExamViewer({ exam, index = 0, canEdit = true, paramCount
             <div className="r2">
               <span><Calendar size={13} /> {formatDate(exam.exam_date, lang)}</span>
               {exam.lab_name && <><span>·</span><span>{exam.lab_name}</span></>}
+              {exam.cost != null && <><span>·</span><span>{formatMoney(exam.cost, user?.currency, lang)}</span></>}
             </div>
           </div>
           <ChevronDown size={20} className="rec-chev" />
@@ -201,7 +204,10 @@ export default function ExamViewer({ exam, index = 0, canEdit = true, paramCount
             <div className="rec-inner rec-inner-pad">
               {editing ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <LabelInput label={t.addExam.examType} value={editForm.exam_type} onChange={v => setField('exam_type', v)} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                    <LabelInput label={t.addExam.examType} value={editForm.exam_type} onChange={v => setField('exam_type', v)} />
+                    <LabelInput label={t.common.cost} type="number" value={editForm.cost} onChange={v => setField('cost', v)} />
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <LabelInput label={t.addExam.date} type="date" value={editForm.exam_date} onChange={v => setField('exam_date', v)} />
                     <LabelInput label={t.addExam.lab} value={editForm.lab_name} onChange={v => setField('lab_name', v)} />

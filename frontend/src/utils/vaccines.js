@@ -2,7 +2,7 @@ import { todayISO } from './format'
 
 export const DUE_SOON_DAYS = 30
 
-function addDays(iso, days) {
+export function addDays(iso, days) {
   const [y, m, d] = iso.split('-').map(Number)
   const date = new Date(y, m - 1, d + days)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`

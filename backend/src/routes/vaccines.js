@@ -1,9 +1,9 @@
 const express = require('express')
 const db = require('../db')
 const { requireAccess } = require('../access')
-const { clean, isISODate, isBlank } = require('../validate')
+const { clean, isISODate, isBlank, isValidCost, cleanCost } = require('../validate')
 
-const FIELDS = ['name', 'date_given', 'next_due_date', 'vet_name', 'batch_number', 'notes']
+const FIELDS = ['name', 'date_given', 'next_due_date', 'vet_name', 'batch_number', 'notes', 'cost']
 
 function validateVaccine(v) {
   if (isBlank(v.name)) return 'name es requerido'
@@ -12,6 +12,7 @@ function validateVaccine(v) {
     if (!isISODate(v.next_due_date)) return 'next_due_date debe tener formato YYYY-MM-DD'
     if (v.next_due_date < v.date_given) return 'next_due_date no puede ser anterior a date_given'
   }
+  if (!isValidCost(v.cost)) return 'cost debe ser un número mayor o igual a 0'
   return null
 }
 
@@ -28,9 +29,9 @@ petRouter.post('/:petId/vaccines', requireAccess('pet', 'editor', 'petId'), (req
 
   const v = req.body
   const result = db.prepare(`
-    INSERT INTO vaccines (pet_id, name, date_given, next_due_date, vet_name, batch_number, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(req.pet.id, String(v.name).trim(), v.date_given, clean(v.next_due_date), clean(v.vet_name), clean(v.batch_number), clean(v.notes))
+    INSERT INTO vaccines (pet_id, name, date_given, next_due_date, vet_name, batch_number, notes, cost)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(req.pet.id, String(v.name).trim(), v.date_given, clean(v.next_due_date), clean(v.vet_name), clean(v.batch_number), clean(v.notes), cleanCost(v.cost))
 
   res.status(201).json(db.prepare('SELECT * FROM vaccines WHERE id = ?').get(result.lastInsertRowid))
 })
@@ -46,7 +47,8 @@ vaccineRouter.put('/:id', requireAccess('vaccine', 'editor'), (req, res) => {
   if (error) return res.status(400).json({ error })
 
   const setClause = fields.map(f => `${f} = ?`).join(', ')
-  db.prepare(`UPDATE vaccines SET ${setClause} WHERE id = ?`).run(...fields.map(f => clean(req.body[f])), req.vaccine.id)
+  const value = f => (f === 'cost' ? cleanCost(req.body.cost) : clean(req.body[f]))
+  db.prepare(`UPDATE vaccines SET ${setClause} WHERE id = ?`).run(...fields.map(value), req.vaccine.id)
   res.json(db.prepare('SELECT * FROM vaccines WHERE id = ?').get(req.vaccine.id))
 })
 

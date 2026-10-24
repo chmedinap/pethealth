@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Plus, X } from 'lucide-react'
+import { Search, Plus, X, Upload } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import PetCard from '../components/PetCard'
 import { useLanguage } from '../context/LanguageContext'
 import { useAuth } from '../context/AuthContext'
-import { getPets, getReminders } from '../api'
+import { getPets, getReminders, importPet } from '../api'
+import { useFeedback } from '../context/FeedbackContext'
 import { todayISO } from '../utils/format'
 import RemindersPanel from '../components/RemindersPanel'
 import { SPECIES, speciesMeta, speciesLabel } from '../utils/species'
@@ -44,6 +45,27 @@ export default function Dashboard() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [reminders, setReminders] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const importRef = useRef(null)
+  const { toast } = useFeedback()
+
+  async function handleImport(e) {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (!file) return
+    setImporting(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await importPet(fd)
+      toast(t.dashboard.imported.replace('{name}', res.data.name), 'success')
+      navigate(`/pets/${res.data.id}`)
+    } catch (err) {
+      toast(err.response?.data?.error || t.dashboard.importError)
+    } finally {
+      setImporting(false)
+    }
+  }
 
   useEffect(() => {
     getPets()
@@ -52,6 +74,14 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
     getReminders(todayISO(), 30).then(res => setReminders(res.data)).catch(() => {})
   }, [])
+
+  // Una dosis nueva se agrega al recordatorio sin volver a pedir todo
+  function addDose(medicationId, dose) {
+    setReminders(prev => ({
+      ...prev,
+      medications: prev.medications.map(m => (m.ref_id === medicationId ? { ...m, doses_today: [...m.doses_today, dose] } : m)),
+    }))
+  }
 
   // Recordatorio más urgente por mascota (la API los devuelve ordenados por fecha)
   const nextByPet = {}
@@ -114,6 +144,11 @@ export default function Dashboard() {
                 </button>
               )}
             </div>
+            <input ref={importRef} type="file" accept=".zip,application/zip" style={{ display: 'none' }} onChange={handleImport} />
+            <button className="btn btn-ghost dash-import" onClick={() => importRef.current?.click()} disabled={importing} title={t.dashboard.importTitle} aria-label={t.dashboard.importTitle}>
+              <Upload size={17} />
+              <span className="label">{importing ? t.dashboard.importing : t.dashboard.importBtn}</span>
+            </button>
             <button className="btn btn-primary dash-add" onClick={() => navigate('/pets/new')}>
               <Plus size={18} strokeWidth={2.6} />
               {t.dashboard.addBtn}
@@ -121,7 +156,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {!loading && !error && pets.length > 0 && <RemindersPanel data={reminders} />}
+        {!loading && !error && pets.length > 0 && <RemindersPanel data={reminders} onDose={addDose} />}
 
         {/* Filter chips */}
         {!loading && !error && pets.length > 0 && chips.length > 2 && (

@@ -2,7 +2,7 @@ const db = require('./db')
 
 // Niveles de acceso a una mascota. Un nivel superior incluye a los inferiores.
 //   viewer — ver la mascota y su historial
-//   editor — además crear/editar/borrar registros (consultas, exámenes, vacunas, peso)
+//   editor — además crear/editar/borrar registros (consultas, exámenes, vacunas, peso, dosis…)
 //   owner  — además borrar la mascota y gestionar con quién se comparte
 const RANK = { viewer: 1, editor: 2, owner: 3 }
 
@@ -34,6 +34,13 @@ const LOOKUPS = {
     WHERE a.id = ?`,
   vaccine: 'SELECT *, pet_id AS _pet_id FROM vaccines WHERE id = ?',
   weight: 'SELECT *, pet_id AS _pet_id FROM weight_logs WHERE id = ?',
+  dose: `
+    SELECT d.*, c.pet_id AS _pet_id FROM medication_doses d
+    JOIN medications m ON m.id = d.medication_id
+    JOIN checkups c ON c.id = m.checkup_id
+    WHERE d.id = ?`,
+  parasite: 'SELECT *, pet_id AS _pet_id FROM parasite_treatments WHERE id = ?',
+  condition: 'SELECT *, pet_id AS _pet_id FROM pet_conditions WHERE id = ?',
 }
 
 const NOT_FOUND = {
@@ -45,6 +52,9 @@ const NOT_FOUND = {
   attachment: 'Archivo no encontrado',
   vaccine: 'Vacuna no encontrada',
   weight: 'Registro de peso no encontrado',
+  dose: 'Dosis no encontrada',
+  parasite: 'Tratamiento antiparasitario no encontrado',
+  condition: 'Condición no encontrada',
 }
 
 // → { row } si el usuario tiene el nivel pedido; { status } en caso contrario.

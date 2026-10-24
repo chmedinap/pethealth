@@ -42,6 +42,10 @@ export const logoutUser = () => api.post('/auth/logout')
 export const getMe = () => api.get('/users/me')
 export const changePassword = (data) => api.put('/users/me/password', data)
 export const revokeOtherSessions = () => api.post('/users/me/sessions/revoke')
+export const updateMe = (data) => api.put('/users/me', data)
+export const createCalendarToken = () => api.post('/users/me/calendar-token')
+export const deleteCalendarToken = () => api.delete('/users/me/calendar-token')
+export const sendTestEmail = (today) => api.post('/users/me/test-email', { today })
 
 // Pets
 export const getPets = () => api.get('/pets')
@@ -50,6 +54,8 @@ export const createPet = (data) => api.post('/pets', data)
 export const updatePet = (id, data) => api.put(`/pets/${id}`, data)
 export const deletePet = (id) => api.delete(`/pets/${id}`)
 export const uploadPetPhoto = (id, formData) => api.post(`/pets/${id}/photo`, formData)
+export const exportPet = (id) => api.get(`/pets/${id}/export`, { responseType: 'blob' })
+export const importPet = (formData) => api.post('/pets/import', formData)
 
 // Sharing
 export const getPetShares = (petId) => api.get(`/pets/${petId}/shares`)
@@ -61,6 +67,25 @@ export const getPetVaccines = (petId) => api.get(`/pets/${petId}/vaccines`)
 export const createVaccine = (petId, data) => api.post(`/pets/${petId}/vaccines`, data)
 export const updateVaccine = (id, data) => api.put(`/vaccines/${id}`, data)
 export const deleteVaccine = (id) => api.delete(`/vaccines/${id}`)
+
+// Parasite treatments
+export const getPetParasites = (petId) => api.get(`/pets/${petId}/parasites`)
+export const createParasite = (petId, data) => api.post(`/pets/${petId}/parasites`, data)
+export const updateParasite = (id, data) => api.put(`/parasites/${id}`, data)
+export const deleteParasite = (id) => api.delete(`/parasites/${id}`)
+
+// Allergies & chronic conditions
+export const getPetConditions = (petId) => api.get(`/pets/${petId}/conditions`)
+export const createCondition = (petId, data) => api.post(`/pets/${petId}/conditions`, data)
+export const updateCondition = (id, data) => api.put(`/conditions/${id}`, data)
+export const deleteCondition = (id) => api.delete(`/conditions/${id}`)
+
+// Vet directory
+export const getVets = () => api.get('/vets')
+export const createVet = (data) => api.post('/vets', data)
+export const updateVet = (id, data) => api.put(`/vets/${id}`, data)
+export const deleteVet = (id) => api.delete(`/vets/${id}`)
+export const importVetsFromHistory = () => api.post('/vets/import-history')
 
 // Weight history
 export const getPetWeights = (petId) => api.get(`/pets/${petId}/weights`)
@@ -80,6 +105,11 @@ export const deleteCheckup = (id) => api.delete(`/checkups/${id}`)
 export const createMedication = (checkupId, data) => api.post(`/checkups/${checkupId}/medications`, data)
 export const updateMedication = (id, data) => api.put(`/medications/${id}`, data)
 export const deleteMedication = (id) => api.delete(`/medications/${id}`)
+
+// Medication doses
+export const getDoses = (medicationId) => api.get(`/medications/${medicationId}/doses`)
+export const createDose = (medicationId, data) => api.post(`/medications/${medicationId}/doses`, data)
+export const deleteDose = (id) => api.delete(`/doses/${id}`)
 
 // Exams
 export const getPetExams = (petId) => api.get(`/pets/${petId}/exams`)
