@@ -3,10 +3,14 @@
 [![CI](https://github.com/chmedinap/pethealth/actions/workflows/ci.yml/badge.svg)](https://github.com/chmedinap/pethealth/actions/workflows/ci.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/martitoci/pethealth)](https://hub.docker.com/r/martitoci/pethealth)
 [![Docker Image Size](https://img.shields.io/docker/image-size/martitoci/pethealth/latest)](https://hub.docker.com/r/martitoci/pethealth)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **A self-hosted medical record for your pets.** Keep vet visits, prescriptions, lab results, vaccines, parasite treatments, weight and expenses in one place, and get reminded before anything is due — by email or right in your calendar.
 
-One Docker container, one SQLite file, no cloud account. Spanish and English interface, light and dark mode, works on your phone.
+One Docker container, one SQLite file, no cloud account. Spanish and English interface, light and dark mode, works on your phone. Free and open source under the [MIT license](LICENSE).
+
+> [!WARNING]
+> **Not meant to be exposed to the internet.** PetHealth hasn't been through a security audit or penetration testing. Run it on your home or local network, and if you need it away from home, reach it through a VPN such as [WireGuard](https://www.wireguard.com/) or [Tailscale](https://tailscale.com/) instead of publishing it. It's provided "as is", without warranty. See the [license](LICENSE).
 
 ![Dashboard](docs/screenshots/dashboard.jpg)
 
@@ -20,12 +24,13 @@ One Docker container, one SQLite file, no cloud account. Spanish and English int
 - [Configuration](#configuration)
 - [Email reminders](#email-reminders)
 - [Calendar subscription](#calendar-subscription)
-- [Reverse proxy (HTTPS)](#reverse-proxy-https)
+- [Remote access and HTTPS](#remote-access-and-https)
 - [Backups, upgrades and data](#backups-upgrades-and-data)
 - [Security](#security)
 - [Development](#development)
 - [Project structure](#project-structure)
 - [API](#api)
+- [License](#license)
 
 ---
 
@@ -141,7 +146,7 @@ All settings are environment variables. Only `JWT_SECRET` is required.
 | `TZ` | `UTC` | Server time zone, e.g. `America/Bogota`. Affects "today" for reminders and emails |
 | `ALLOW_REGISTRATION` | `false` | `true` shows a sign-up option on the login screen |
 | `SEED_DEMO` | `true` | Create the 4 demo pets on the very first start |
-| `APP_URL` | — | Public URL of the app (e.g. `https://pets.example.com`), used for links in emails and calendar events |
+| `APP_URL` | — | The address you use to open the app (e.g. `http://192.168.1.50:3000`), used for links in emails and calendar events |
 | `TRUST_PROXY` | `false` | Set to `true` behind a reverse proxy (secure cookies and real client IP) |
 | `LOGIN_RATE_LIMIT` | `10` | Failed login attempts allowed per IP every 15 minutes (`0` disables) |
 | `BACKUP_INTERVAL_HOURS` | `24` | Hours between automatic database backups (`0` disables) |
@@ -170,7 +175,7 @@ Per-user preferences — currency, language, notification email and calendar lin
    SMTP_USER=you@gmail.com
    SMTP_PASS=your-app-password
    SMTP_FROM=PetHealth <you@gmail.com>
-   APP_URL=https://pets.example.com
+   APP_URL=http://192.168.1.50:3000
    ```
 
 2. In **My account → Email reminders**, enter your address, tick the box and save. Use **Send test email** to check the setup.
@@ -183,8 +188,10 @@ The server checks every hour and sends at most one email per user per day, after
 
 In **My account → Calendar**, create your private link and add it to your calendar app:
 
-- **Google Calendar:** *Other calendars → + → From URL*, paste the link
-- **Apple Calendar / Outlook:** use **Open in my calendar**, or subscribe to the URL manually
+- **Apple Calendar** (Mac, iPhone, iPad): use **Open in my calendar**, or subscribe to the URL manually
+- **Google Calendar / Outlook:** *Other calendars → + → From URL* (Google) or *Subscribe from web* (Outlook), then paste the link
+
+> **Note:** Google and Outlook fetch subscribed calendars from their own servers, so they can only sync if PetHealth is reachable from the internet, which is **not recommended** (see the warning above). Apple Calendar on a device in your home network, or connected through your VPN, reaches the local address directly.
 
 The feed includes next vet visits, vaccine boosters, parasite treatments and ongoing medications for all the pets you can see, with an alert the day before. Calendar apps refresh it on their own schedule (Google can take several hours).
 
@@ -192,9 +199,11 @@ The link works without signing in, which is why it's random and long. If it leak
 
 ---
 
-## Reverse proxy (HTTPS)
+## Remote access and HTTPS
 
-Set `TRUST_PROXY=true` and `APP_URL`, then proxy to port 3001. nginx example:
+PetHealth is designed for your **local network**. To use it away from home, connect through a **VPN** (WireGuard, Tailscale, your router's VPN…) rather than opening a port or publishing it on a domain. It hasn't been security-tested for public exposure.
+
+If you want HTTPS inside your network or VPN (for example with a local domain and your own certificate), put a reverse proxy in front. Set `TRUST_PROXY=true` and `APP_URL`, then proxy to port 3001. nginx example:
 
 ```nginx
 server {
@@ -227,7 +236,7 @@ data/
 ```
 
 - **Backups.** The server keeps `BACKUP_KEEP` consistent snapshots in `data/backups/`, taken with SQLite's online backup API, which is safe while the app runs. Take one manually with `docker exec pethealth npm run backup`. Uploaded files never change once written, so copying the whole `data/` folder is a full backup.
-- **Restore.** Stop the container, put the folder back (or copy a snapshot over `pethealth.db`) and start it again.
+- **Restore.** Stop the container, put the folder back (or delete `pethealth.db-wal` and `pethealth.db-shm` and copy a snapshot over `pethealth.db`) and start it again.
 - **Upgrade.** `docker compose pull && docker compose up -d`. Schema changes are applied automatically on startup through versioned migrations (`PRAGMA user_version`).
 - **Moving a single pet.** Use *Export pet (ZIP)* on its profile and *Import* on the dashboard of the other account or installation.
 
@@ -241,7 +250,11 @@ data/
 - Changing your password signs out every other session. *My account → Sign out of all other devices* does the same on demand.
 - Every record is scoped to the pets a user owns or was given access to. Other users' records answer `404`.
 - Uploads are restricted by type and size, stored under random names and only served to users with access to the pet. Imported files are checked by content, not by name.
-- Keep the instance behind HTTPS if it's reachable from the internet, and leave `ALLOW_REGISTRATION=false` unless you want anyone to be able to sign up.
+- Leave `ALLOW_REGISTRATION=false` unless you want anyone on your network to be able to sign up.
+
+> **No security audit.** These protections are good practice, but PetHealth hasn't been through a security audit or penetration testing. Keep it on your local network or behind a VPN, and don't expose it directly to the internet.
+
+**Reporting a vulnerability:** open a [GitHub issue](https://github.com/chmedinap/pethealth/issues/new) with a title starting with `[Security]`. See [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -321,6 +334,14 @@ pethealth/
 ## API
 
 PetHealth has a JSON REST API (the same one the UI uses), authenticated with a Bearer token from `POST /api/auth/login`. See **[docs/API.md](docs/API.md)** for every endpoint.
+
+---
+
+## License
+
+PetHealth is released under the [MIT License](LICENSE): you can use, install, modify and redistribute it freely, including commercially, as long as you keep the copyright notice and license text, which credits the original author. The software is provided "as is", without warranty of any kind.
+
+Copyright © 2026 Carlos Medina
 
 ---
 

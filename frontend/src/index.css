@@ -485,6 +485,7 @@ button { font-family: inherit; }
 .rec-ttl .r1 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .rec-ttl h4 { margin: 0; font-size: 15.5px; font-weight: 800; color: var(--text); }
 .rec-ttl .r2 { color: var(--text-2); font-size: 13px; font-weight: 600; margin-top: 3px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.rec-ttl .r2 > span { display: inline-flex; align-items: center; gap: 4px; }
 .rec-ttl .r3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .rec-ttl .r3-dx { font-size: 13.5px; font-weight: 600; color: var(--text); min-width: 0; }
 .rec-ttl .r3-k { font: 800 10.5px/1 var(--f-pet); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin-right: 4px; }
