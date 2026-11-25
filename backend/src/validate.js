@@ -38,4 +38,6 @@ function cleanCost(value) {
   return v === null ? null : Math.round(Number(v) * 100) / 100
 }
 
-module.exports = { clean, isISODate, isBlank, todayISO, addDaysISO, isValidCost, cleanCost }
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+module.exports = { EMAIL_RE, clean, isISODate, isBlank, todayISO, addDaysISO, isValidCost, cleanCost }

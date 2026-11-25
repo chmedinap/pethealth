@@ -12,6 +12,9 @@ const SPECIES = ['dog', 'cat', 'bird', 'rabbit', 'rodent', 'ferret', 'reptile', 
 const GENDERS = ['male', 'female']
 const SHARE_ROLES = ['viewer', 'editor']
 
+// Fecha local del navegador para el registro de peso; si no viene, la del servidor (TZ)
+const clientToday = body => (isISODate(body.today) ? body.today : todayISO())
+
 function validatePet(body, partial = false) {
   if (!partial || 'name' in body) {
     if (!body.name || !String(body.name).trim()) return 'name es requerido'
@@ -69,7 +72,7 @@ router.post('/', (req, res) => {
       INSERT INTO pets (user_id, name, species, breed, birth_date, gender, weight_kg, notes)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(req.user.id, String(name).trim(), species, clean(breed), clean(birth_date), clean(gender), clean(weight_kg), clean(notes))
-    if (clean(weight_kg) != null) recordWeight(result.lastInsertRowid, Number(weight_kg), todayISO())
+    if (clean(weight_kg) != null) recordWeight(result.lastInsertRowid, Number(weight_kg), clientToday(req.body))
     return result.lastInsertRowid
   })
 
@@ -97,7 +100,7 @@ router.put('/:id', requireAccess('pet', 'editor'), (req, res) => {
     // Un cambio de peso desde el formulario queda registrado en el historial
     const newWeight = clean(req.body.weight_kg)
     if (fields.includes('weight_kg') && newWeight != null && Number(newWeight) !== req.pet.weight_kg) {
-      recordWeight(req.pet.id, Number(newWeight), todayISO())
+      recordWeight(req.pet.id, Number(newWeight), clientToday(req.body))
     }
   })
   update()

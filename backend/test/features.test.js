@@ -76,6 +76,11 @@ describe('historial de peso', () => {
     assert.equal((await weights()).at(-1).weight_kg, 11)
   })
 
+  it('el peso desde el perfil usa la fecha del navegador', async () => {
+    await as(token).put(`/api/pets/${pet.id}`).send({ weight_kg: 9, today: '2030-06-15' })
+    assert.ok((await weights()).some(w => w.measured_on === '2030-06-15' && w.weight_kg === 9))
+  })
+
   it('valida los datos', async () => {
     assert.equal((await as(token).post(`/api/pets/${pet.id}/weights`).send({ measured_on: '2024-01-01', weight_kg: -1 })).status, 400)
     assert.equal((await as(token).post(`/api/pets/${pet.id}/weights`).send({ measured_on: 'ayer', weight_kg: 5 })).status, 400)

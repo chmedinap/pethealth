@@ -1,7 +1,7 @@
 const express = require('express')
 const db = require('../db')
 const { ACCESSIBLE_PETS_SQL } = require('../access')
-const { clean, isBlank } = require('../validate')
+const { clean, isBlank, EMAIL_RE } = require('../validate')
 
 // Directorio personal de veterinarios y clínicas. Las consultas siguen guardando
 // el nombre como texto: así una mascota compartida no depende del directorio de nadie.
@@ -10,11 +10,11 @@ const FIELDS = ['name', 'clinic', 'phone', 'email', 'address', 'notes']
 
 function validateVet(v) {
   if (isBlank(v.name)) return 'name es requerido'
-  if (clean(v.email) != null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v.email))) return 'email inválido'
+  if (clean(v.email) != null && !EMAIL_RE.test(String(v.email))) return 'email inválido'
   return null
 }
 
-const normalize = (field, value) => {
+const normalize = value => {
   const v = clean(value)
   return v == null ? null : String(v).trim() || null
 }
@@ -40,7 +40,7 @@ router.post('/', (req, res) => {
 
   const result = db.prepare(`
     INSERT INTO vets (user_id, ${FIELDS.join(', ')}) VALUES (?, ${FIELDS.map(() => '?').join(', ')})
-  `).run(req.user.id, ...FIELDS.map(f => normalize(f, req.body[f])))
+  `).run(req.user.id, ...FIELDS.map(f => normalize(req.body[f])))
   res.status(201).json(db.prepare('SELECT * FROM vets WHERE id = ?').get(result.lastInsertRowid))
 })
 
@@ -80,7 +80,7 @@ router.put('/:id', loadVet, (req, res) => {
   if (error) return res.status(400).json({ error })
 
   const setClause = fields.map(f => `${f} = ?`).join(', ')
-  db.prepare(`UPDATE vets SET ${setClause} WHERE id = ?`).run(...fields.map(f => normalize(f, req.body[f])), req.vet.id)
+  db.prepare(`UPDATE vets SET ${setClause} WHERE id = ?`).run(...fields.map(f => normalize(req.body[f])), req.vet.id)
   res.json(db.prepare('SELECT * FROM vets WHERE id = ?').get(req.vet.id))
 })
 

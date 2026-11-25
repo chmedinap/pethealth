@@ -61,6 +61,4 @@ function fileAuthMiddleware(req, res, next) {
   next()
 }
 
-module.exports = authMiddleware
-module.exports.authMiddleware = authMiddleware
-module.exports.fileAuthMiddleware = fileAuthMiddleware
+module.exports = { authMiddleware, fileAuthMiddleware }

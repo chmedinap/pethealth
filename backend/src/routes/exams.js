@@ -2,26 +2,19 @@ const express = require('express')
 const db = require('../db')
 const { requireAccess } = require('../access')
 const { clean, isISODate, isValidCost, cleanCost } = require('../validate')
-const { uploadPdf, uploadAttachment, removeFile, removeFiles } = require('../files')
-
-const MAX_ATTACHMENTS = 3
+const { uploadPdf, removeFile, removeFiles } = require('../files')
+const { getAttachments, attachmentRoutes } = require('./attachments')
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getExamValues(examId) {
   return db.prepare('SELECT * FROM exam_values WHERE exam_id = ?').all(examId)
 }
 
-function getAttachments(examId) {
-  return db.prepare(
-    "SELECT * FROM attachments WHERE entity_type = 'exam' AND entity_id = ? ORDER BY created_at ASC"
-  ).all(examId)
-}
-
 function fullExam(exam) {
   return {
     ...exam,
     exam_values: getExamValues(exam.id),
-    attachments: getAttachments(exam.id),
+    attachments: getAttachments('exam', exam.id),
   }
 }
 
@@ -124,7 +117,7 @@ examRouter.put('/:id', requireAccess('exam', 'editor'), (req, res) => {
 })
 
 examRouter.delete('/:id', requireAccess('exam', 'editor'), (req, res) => {
-  const files = getAttachments(req.exam.id).map(a => a.file_url)
+  const files = getAttachments('exam', req.exam.id).map(a => a.file_url)
   if (req.exam.pdf_url) files.push(req.exam.pdf_url)
   // El trigger trg_exam_attachments borra las filas de attachments
   db.prepare('DELETE FROM exams WHERE id = ?').run(req.exam.id)
@@ -154,34 +147,7 @@ examRouter.post('/:id/values', requireAccess('exam', 'editor'), (req, res) => {
   res.status(201).json(insert())
 })
 
-// GET /api/exams/:id/attachments
-examRouter.get('/:id/attachments', requireAccess('exam', 'viewer'), (req, res) => {
-  res.json(getAttachments(req.exam.id))
-})
-
-// Rechaza antes de escribir el archivo si ya se alcanzó el máximo
-function checkAttachmentLimit(req, res, next) {
-  const { cnt } = db.prepare(
-    "SELECT COUNT(*) as cnt FROM attachments WHERE entity_type = 'exam' AND entity_id = ?"
-  ).get(req.exam.id)
-  if (cnt >= MAX_ATTACHMENTS) return res.status(400).json({ error: `Máximo ${MAX_ATTACHMENTS} archivos por examen` })
-  next()
-}
-
-// POST /api/exams/:id/attachments
-examRouter.post('/:id/attachments', requireAccess('exam', 'editor'), checkAttachmentLimit, uploadAttachment.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' })
-
-  const file_url = `/uploads/attachments/${req.file.filename}`
-  const file_type = req.file.mimetype === 'application/pdf' ? 'pdf' : 'image'
-
-  const result = db.prepare(`
-    INSERT INTO attachments (entity_type, entity_id, file_url, file_name, file_type)
-    VALUES ('exam', ?, ?, ?, ?)
-  `).run(req.exam.id, file_url, req.file.originalname, file_type)
-
-  res.status(201).json(db.prepare('SELECT * FROM attachments WHERE id = ?').get(result.lastInsertRowid))
-})
+attachmentRoutes(examRouter, 'exam', 'examen')
 
 // ── Router montado en /api/exam-values ───────────────────────────────────────
 const examValueRouter = express.Router()

@@ -2,9 +2,8 @@ const express = require('express')
 const db = require('../db')
 const { requireAccess } = require('../access')
 const { clean, isISODate, isValidCost, cleanCost } = require('../validate')
-const { uploadAttachment, removeFiles } = require('../files')
-
-const MAX_ATTACHMENTS = 3
+const { removeFiles } = require('../files')
+const { getAttachments, attachmentRoutes } = require('./attachments')
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // Cada medicamento incluye cuántas dosis se registraron y cuándo fue la última
@@ -32,17 +31,11 @@ function listDoses(medicationId) {
   `).all(medicationId)
 }
 
-function getAttachments(checkupId) {
-  return db.prepare(
-    "SELECT * FROM attachments WHERE entity_type = 'checkup' AND entity_id = ? ORDER BY created_at ASC"
-  ).all(checkupId)
-}
-
 function fullCheckup(checkup) {
   return {
     ...checkup,
     medications: getMedications(checkup.id),
-    attachments: getAttachments(checkup.id),
+    attachments: getAttachments('checkup', checkup.id),
   }
 }
 
@@ -129,7 +122,7 @@ checkupRouter.put('/:id', requireAccess('checkup', 'editor'), (req, res) => {
 })
 
 checkupRouter.delete('/:id', requireAccess('checkup', 'editor'), (req, res) => {
-  const files = getAttachments(req.checkup.id).map(a => a.file_url)
+  const files = getAttachments('checkup', req.checkup.id).map(a => a.file_url)
   // El trigger trg_checkup_attachments borra las filas de attachments
   db.prepare('DELETE FROM checkups WHERE id = ?').run(req.checkup.id)
   removeFiles(files)
@@ -153,34 +146,7 @@ checkupRouter.post('/:id/medications', requireAccess('checkup', 'editor'), (req,
   res.status(201).json(getMedication(result.lastInsertRowid))
 })
 
-// GET /api/checkups/:id/attachments
-checkupRouter.get('/:id/attachments', requireAccess('checkup', 'viewer'), (req, res) => {
-  res.json(getAttachments(req.checkup.id))
-})
-
-// Rechaza antes de escribir el archivo si ya se alcanzó el máximo
-function checkAttachmentLimit(req, res, next) {
-  const { cnt } = db.prepare(
-    "SELECT COUNT(*) as cnt FROM attachments WHERE entity_type = 'checkup' AND entity_id = ?"
-  ).get(req.checkup.id)
-  if (cnt >= MAX_ATTACHMENTS) return res.status(400).json({ error: `Máximo ${MAX_ATTACHMENTS} archivos por checkup` })
-  next()
-}
-
-// POST /api/checkups/:id/attachments
-checkupRouter.post('/:id/attachments', requireAccess('checkup', 'editor'), checkAttachmentLimit, uploadAttachment.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' })
-
-  const file_url = `/uploads/attachments/${req.file.filename}`
-  const file_type = req.file.mimetype === 'application/pdf' ? 'pdf' : 'image'
-
-  const result = db.prepare(`
-    INSERT INTO attachments (entity_type, entity_id, file_url, file_name, file_type)
-    VALUES ('checkup', ?, ?, ?, ?)
-  `).run(req.checkup.id, file_url, req.file.originalname, file_type)
-
-  res.status(201).json(db.prepare('SELECT * FROM attachments WHERE id = ?').get(result.lastInsertRowid))
-})
+attachmentRoutes(checkupRouter, 'checkup', 'checkup')
 
 // ── Router montado en /api/medications ───────────────────────────────────────
 const medicationRouter = express.Router()

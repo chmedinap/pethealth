@@ -1,5 +1,5 @@
 # ── Stage 1: Build frontend ──────────────────────────────────────────────────
-FROM node:20-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package.json .
 RUN npm install
@@ -11,7 +11,7 @@ COPY frontend/postcss.config.js .
 RUN npm run build
 
 # ── Stage 2: Production image ─────────────────────────────────────────────────
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 

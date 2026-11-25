@@ -12,6 +12,7 @@ const { isISODate, isBlank, isValidCost, cleanCost, todayISO } = require('../val
 const { SPECIES } = require('./pets')
 const { PARASITE_KINDS } = require('./parasites')
 const { CONDITION_KINDS } = require('./conditions')
+const { MAX_ATTACHMENTS } = require('./attachments')
 
 // Exportar / importar una mascota completa como ZIP: pet.json + files/…
 // El formato es propio de PetHealth y sirve para migrar entre instalaciones
@@ -21,7 +22,6 @@ const VERSION = 1
 const MAX_ZIP_MB = 200
 const MAX_ENTRIES = 2000
 const MAX_UNCOMPRESSED = 1024 * 1024 * 1024
-const MAX_ATTACHMENTS = 3
 
 const router = express.Router()
 

@@ -33,7 +33,8 @@ async function runBackup() {
   const dest = path.join(BACKUP_DIR, `${PREFIX}${timestamp()}${SUFFIX}`)
   await db.backup(dest)
 
-  for (const old of listBackups().slice(BACKUP_KEEP)) fs.unlinkSync(old.file)
+  // Nunca se borra la copia recién hecha, aunque BACKUP_KEEP sea 0 (backups automáticos desactivados)
+  for (const old of listBackups().slice(Math.max(BACKUP_KEEP, 1))) fs.unlinkSync(old.file)
   return dest
 }
 

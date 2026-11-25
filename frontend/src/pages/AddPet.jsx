@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar'
 import { useLanguage } from '../context/LanguageContext'
 import { getPet, createPet, updatePet, uploadPetPhoto } from '../api'
 import { SPECIES, speciesMeta, speciesLabel } from '../utils/species'
+import { todayISO } from '../utils/format'
 
 const inputStyle = { width: '100%', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '10px 14px', fontSize: '0.92rem', color: 'var(--text-primary)', fontFamily: 'Nunito, sans-serif', outline: 'none', boxSizing: 'border-box' }
 
@@ -67,7 +68,7 @@ export default function AddPet() {
     if (Object.keys(e).length) { setErrors(e); return }
     setLoading(true)
     try {
-      const body = { ...form, weight_kg: form.weight_kg !== '' ? parseFloat(form.weight_kg) : null }
+      const body = { ...form, weight_kg: form.weight_kg !== '' ? parseFloat(form.weight_kg) : null, today: todayISO() }
       let petId = id
       if (isEdit) {
         await updatePet(id, body)

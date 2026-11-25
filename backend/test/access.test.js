@@ -91,6 +91,15 @@ describe('archivos', () => {
     const r = await as(alice).post(`/api/checkups/${checkup.id}/attachments`).attach('file', PDF, { filename: 'r.pdf', contentType: 'application/pdf' })
     assert.equal(r.status, 400)
   })
+
+  it('subidas simultáneas no pasan el máximo ni dejan archivos sueltos', async () => {
+    const upload = () => as(alice).post(`/api/exams/${exam.id}/attachments`).attach('file', PDF, { filename: 'r.pdf', contentType: 'application/pdf' })
+    const before = fs.readdirSync(path.join(dataDir, 'uploads/attachments')).length
+    const results = await Promise.all([upload(), upload(), upload(), upload(), upload()])
+    assert.equal(results.filter(r => r.status === 201).length, 3)
+    assert.equal((await as(alice).get(`/api/exams/${exam.id}/attachments`)).body.length, 3)
+    assert.equal(fs.readdirSync(path.join(dataDir, 'uploads/attachments')).length, before + 3)
+  })
 })
 
 describe('compartir con rol de lector', () => {

@@ -3,7 +3,7 @@ const express = require('express')
 const bcrypt = require('bcryptjs')
 const db = require('../db')
 const { emailEnabled, sendDigest } = require('../notify')
-const { isISODate } = require('../validate')
+const { isISODate, EMAIL_RE } = require('../validate')
 const { MIN_PASSWORD } = require('./auth')
 const { issueSession, publicUser } = require('../session')
 
@@ -17,7 +17,6 @@ function revokeOtherSessions(req, res) {
   return issueSession(req, res, user)
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const LANGS = ['es', 'en']
 
 function profile(user) {
