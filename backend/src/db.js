@@ -3,7 +3,18 @@ const bcrypt = require('bcryptjs')
 const fs = require('fs')
 const { DATA_DIR, DB_PATH } = require('./config')
 
-fs.mkdirSync(DATA_DIR, { recursive: true })
+// La imagen corre como el usuario "node" (uid 1000): una carpeta data/ creada por root
+// (versiones anteriores, o Docker al crear un bind mount) no se puede escribir.
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.accessSync(DATA_DIR, fs.constants.W_OK)
+  if (fs.existsSync(DB_PATH)) fs.accessSync(DB_PATH, fs.constants.W_OK)
+} catch (err) {
+  console.error(`❌ No se puede escribir en ${DATA_DIR} (${err.code}).`)
+  console.error('   La carpeta de datos debe pertenecer al usuario 1000. En el host: sudo chown -R 1000:1000 ./data')
+  console.error('   Más información: https://github.com/chmedinap/pethealth#upgrading-from-a-version-that-ran-as-root')
+  process.exit(1)
+}
 
 const db = new Database(DB_PATH)
 

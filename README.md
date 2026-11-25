@@ -105,6 +105,7 @@ services:
 and a `.env` next to it (see [.env.example](.env.example) for every option):
 
 ```bash
+mkdir -p data && sudo chown 1000:1000 data   # Linux: the app runs as uid 1000
 echo "JWT_SECRET=$(openssl rand -hex 32)" > .env
 echo "TZ=America/Bogota" >> .env
 docker compose up -d
@@ -115,6 +116,7 @@ Open **http://localhost:3000** and sign in with **admin / admin123**. You'll be 
 ### docker run
 
 ```bash
+mkdir -p data && sudo chown 1000:1000 data   # Linux: the app runs as uid 1000
 docker run -d --name pethealth --restart unless-stopped \
   -p 3000:3001 \
   -e JWT_SECRET="$(openssl rand -hex 32)" \
@@ -129,6 +131,7 @@ docker run -d --name pethealth --restart unless-stopped \
 git clone https://github.com/chmedinap/pethealth.git
 cd pethealth
 cp .env.example .env    # then set JWT_SECRET
+mkdir -p data && sudo chown 1000:1000 data   # Linux: the app runs as uid 1000
 docker compose up --build -d
 ```
 
@@ -237,8 +240,25 @@ data/
 
 - **Backups.** The server keeps `BACKUP_KEEP` consistent snapshots in `data/backups/`, taken with SQLite's online backup API, which is safe while the app runs. Take one manually with `docker exec pethealth npm run backup`. Uploaded files never change once written, so copying the whole `data/` folder is a full backup.
 - **Restore.** Stop the container, put the folder back (or delete `pethealth.db-wal` and `pethealth.db-shm` and copy a snapshot over `pethealth.db`) and start it again.
-- **Upgrade.** `docker compose pull && docker compose up -d`. Schema changes are applied automatically on startup through versioned migrations (`PRAGMA user_version`).
+- **Upgrade.** `docker compose pull && docker compose up -d`. Schema changes are applied automatically on startup through versioned migrations (`PRAGMA user_version`). Upgrading an install from before November 2026? Read the next section first.
 - **Moving a single pet.** Use *Export pet (ZIP)* on its profile and *Import* on the dashboard of the other account or installation.
+
+### Upgrading from a version that ran as root
+
+> [!IMPORTANT]
+> Since November 2026 the image runs as the unprivileged `node` user (uid 1000) instead of `root`, so a bug in the app can't take over the container. Older versions created `data/` as root, and the new version can't write there.
+
+If the container stops right after the upgrade and the log says `No se puede escribir en /app/data (EACCES)`, give the folder to uid 1000 once and start again:
+
+```bash
+docker compose down
+sudo chown -R 1000:1000 ./data
+docker compose up -d
+```
+
+With a named volume instead of a folder: `docker run --rm -v <volume-name>:/data alpine chown -R 1000:1000 /data`.
+
+On Docker Desktop (Mac or Windows) this is usually not needed. Nothing in your data changes; only the owner of the files does.
 
 ---
 
@@ -260,7 +280,7 @@ data/
 
 ## Development
 
-Requires Node.js 20+.
+Requires Node.js 22+.
 
 ```bash
 # Terminal 1 — API on :3001 (data in backend/data)
@@ -282,11 +302,13 @@ GitHub Actions ([ci.yml](.github/workflows/ci.yml)) runs both suites, the produc
 
 ### Publishing the image
 
-Build for `linux/amd64` (most servers), even from an Apple Silicon Mac:
+Build for `linux/amd64` (most servers and NAS) and `linux/arm64` (Raspberry Pi 4/5, Apple Silicon) in one push:
 
 ```bash
-docker buildx build --platform linux/amd64 -t martitoci/pethealth:latest --push .
+docker buildx build --platform linux/amd64,linux/arm64 -t martitoci/pethealth:latest --push .
 ```
+
+Dependencies are pinned by `package-lock.json` (`npm ci`). The image runs as `node` (uid 1000) and has a `HEALTHCHECK` on `GET /api/health`.
 
 ### Tech stack
 

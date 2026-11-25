@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const multer = require('multer')
 
-require('./db')
+const db = require('./db')
 const authRouter = require('./routes/auth')
 const usersRouter = require('./routes/users')
 const petsRouter = require('./routes/pets')
@@ -24,6 +24,12 @@ const { canReadFile } = require('./access')
 const { UploadError, resolveUploadPath } = require('./files')
 
 const app = express()
+
+// Healthcheck de Docker: va antes del logger para no llenar los logs cada 30 s
+app.get('/api/health', (req, res) => {
+  db.prepare('SELECT 1').get()
+  res.json({ ok: true })
+})
 
 // ── Request logger ────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {

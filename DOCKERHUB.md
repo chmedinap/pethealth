@@ -23,6 +23,7 @@ One container, one SQLite file, no cloud account. Spanish and English interface,
 ## Quick start
 
 ```bash
+mkdir -p data && sudo chown 1000:1000 data   # Linux: the app runs as uid 1000
 docker run -d --name pethealth --restart unless-stopped \
   -p 3000:3001 \
   -e JWT_SECRET="$(openssl rand -hex 32)" \
@@ -91,7 +92,9 @@ Currency, language, notification email and the calendar link are per-user settin
 | | |
 |---|---|
 | Port | `3001` (HTTP) inside the container |
-| Volume | `/app/data` — SQLite database, uploaded files and `backups/` |
+| Volume | `/app/data` — SQLite database, uploaded files and `backups/`. Must be writable by uid 1000 |
+| User | `node` (uid 1000), not root |
+| Healthcheck | `GET /api/health` every 30 s |
 
 Back up by copying the `data/` folder. Automatic snapshots are kept in `data/backups/`; take one manually with `docker exec pethealth npm run backup`.
 
@@ -103,10 +106,18 @@ docker compose pull && docker compose up -d
 
 Database migrations run automatically on startup.
 
+> ⚠️ **Upgrading an install from before November 2026?** The image now runs as the non-root user `node` (uid 1000). If the container stops with `No se puede escribir en /app/data (EACCES)`, fix the folder's owner once:
+>
+> ```bash
+> docker compose down && sudo chown -R 1000:1000 ./data && docker compose up -d
+> ```
+>
+> Named volume: `docker run --rm -v <volume-name>:/data alpine chown -R 1000:1000 /data`. Details: [Upgrading from a version that ran as root](https://github.com/chmedinap/pethealth#upgrading-from-a-version-that-ran-as-root).
+
 ## Platforms and tags
 
 - `latest` — the current version, built from the `main` branch
-- Architecture: `linux/amd64`
+- Architectures: `linux/amd64`, `linux/arm64`
 
 ## Security notes
 
